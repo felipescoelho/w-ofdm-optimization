@@ -3,4 +3,5 @@ references/*
 channels/*
 optimized_windows/*
 *.asv
+*.mat
 

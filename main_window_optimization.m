@@ -30,10 +30,15 @@
 % Set 30, 2022
 %
 
+
 clc
 clear
 close all
 
+
+fprintf('Starting main_window_optimization.m ... \n\n')
+fprintf('This script runs the optimization process for the windows\n')
+fprintf('in the different w-OFDM systems.\n\n')
 % Definitions
 %
 % From paper:
@@ -45,18 +50,66 @@ close all
 % CPwrx: mu=32, rho=0, N=256, beta=0, delta=10, gamma=22, kappa=5
 %
 
-fprintf('Working on wtx-OFDM...\n')
-optimize_window('wtx', 32, 8, 256, 8, 0, 32, 0, 'optimized_windows')
-fprintf('Working on wrx-OFDM...\n')
-optimize_window('wrx', 32, 5, 256, 0, 10, 27, 0, 'optimized_windows')
-fprintf('Working on WOLA-OFDM...\n')
-optimize_window('WOLA', 32, 8, 256, 8, 10, 22, 5, 'optimized_windows')
-fprintf('Working on CPW-OFDM...\n')
-optimize_window('CPW', 32, 13, 256, 8, 10, 27, 0, 'optimized_windows')
-fprintf('Working on CPwtx-OFDM...\n')
-optimize_window('CPwtx', 32, 0, 256, 8, 0, 24, 8, 'optimized_windows')
-fprintf('Working on CPwrx-OFDM...\n')
-optimize_window('CPwrx', 32, 0, 256, 0, 10, 22, 5, 'optimized_windows')
+folderName = 'optimized_windows';
+if ~isfolder(folderName)
+    mkdir(folderName)
+end
+settingsFileName = 'settingsData.mat';
+fprintf('Generating settingsData structure array.\n')
+settingsData = struct();
+settingsData.generalSettings = struct('numberSubcarriers', 256, ...
+    'bitsPerSubcarrier', 4, 'cyclicPrefix', 32);
+settingsData.wtx = struct('cyclicSuffix', 8, 'tailTx', 8, 'tailRx', 0, ...
+    'prefixRemoval', 32, 'circularShift', 0);
+settingsData.wrx = struct('cyclicSuffix', 5, 'tailTx', 0, 'tailRx', 10, ...
+    'prefixRemoval', 27, 'circularShift', 0);
+settingsData.WOLA = struct('cyclicSuffix', 8, 'tailTx', 8, 'tailRx', ...
+    10, 'prefixRemoval', 22, 'circularShift', 5);
+settingsData.CPW = struct('cyclicSuffix', 13, 'tailTx', 8, 'tailRx', ...
+    10, 'prefixRemoval', 27, 'circularShift', 0);
+settingsData.CPwtx = struct('cyclicSuffix', 0, 'tailTx', 8, 'tailRx', ...
+    0, 'prefixRemoval', 24, 'circularShift', 8);
+settingsData.CPwrx = struct('cyclicSuffix', 0, 'tailTx', 0, 'tailRx', ...
+    10, 'prefixRemoval', 22, 'circularShift', 5);
+fprintf('Saving settingsData structure array in %s\n', settingsFileName)
+save(settingsFileName, 'settingsData')
+fprintf('Successfully saved settingsData.\n')
+fprintf('------------------------------------\n')
+fprintf('Starting run ...\n\n')
+fields = fieldnames(settingsData);
+clear settingsData
+for fieldIndex = 1:length(fields)
+    fieldName = fields{fieldIndex};
+    loadingStructure = load(settingsFileName);
+    settingsData = loadingStructure.settingsData;
+    switch fieldName
+        case {'wtx', 'wrx', 'WOLA', 'CPW', 'CPwtx', 'CPwrx'}
+            fprintf('Working on %s-OFDM ...\n', fieldName)
+            numSubcar = settingsData.generalSettings.numberSubcarriers;
+            cpLength = settingsData.generalSettings.cyclicPrefix;
+            csLength = settingsData.(fieldName).cyclicSuffix;
+            tailTx = settingsData.(fieldName).tailTx;
+            tailRx = settingsData.(fieldName).tailRx;
+            prefixRemoval = settingsData.(fieldName).prefixRemoval;
+            circularShift = settingsData.(fieldName).circularShift;
+            fprintf('--------------------------------------\n')
+            fprintf('Settings:\n')
+            fprintf('N = %u (Number of subcarriers)\n', numSubcar)
+            fprintf('mu = %u (CP length)\n', cpLength)
+            fprintf('rho = %u (CS length)\n', csLength)
+            fprintf('beta = %u (Tx window tail length)\n', tailTx)
+            fprintf('delta = %u (Rx window tail length)\n', tailRx)
+            fprintf('gamma = %u (Number of samples removed', prefixRemoval)
+            fprintf(' in receiver)\n')
+            fprintf('kappa = %u (Number of samples in ', circularShift)
+            fprintf('circular shift)\n')
+            fprintf('--------------------------------------\n')
+            optimize_window(fieldName, cpLength, csLength, numSubcar, ...
+                tailTx, tailRx, prefixRemoval, circularShift, folderName)
+        otherwise
+            continue
+    end
+end
 
 
 function optimize_window(typeOFDM, cyclicPrefix, cyclicSuffix, ...
@@ -77,9 +130,6 @@ function optimize_window(typeOFDM, cyclicPrefix, cyclicSuffix, ...
 %   and CPwrx. (kappa)
 %   . folderName: Name of the folder to save optimized windows.
 
-if ~isdir(folderName)  %#ok
-    mkdir(folderName)
-end
 folderPath = [cd '/' folderName '/'];
 load('./channels/vehA200channel2.mat', 'vehA200channel2')
 averageChannel = mean(vehA200channel2, 1);
@@ -120,7 +170,7 @@ switch typeOFDM
         % Save results
         fprintf('Saving results...\n')
         fileName = strcat('optimal_win_', typeOFDM, '_VehA200_', ...
-            cyclicPrefix, 'CP_', cyclicSuffix, 'CS');
+            num2str(cyclicPrefix), 'CP');
         save([folderPath fileName], 'optimizedTransmitterWindow')
         fprintf('Optimized windows were successfully saved into file.\n')
         fprintf('\n')
@@ -160,7 +210,7 @@ switch typeOFDM
         % Save results
         fprintf('Saving results...\n')
         fileName = strcat('optimal_win_', typeOFDM, '_VehA200_', ...
-            cyclicPrefix, 'CP_', cyclicSuffix, 'CS');
+            num2str(cyclicPrefix), 'CP');
         save([folderPath fileName], 'optimizedReceiverWindow')
         fprintf('Optimized windows were successfully saved into file.\n')
         fprintf('\n')
@@ -205,7 +255,7 @@ switch typeOFDM
             [], [], [], [], lowerBoundsTx, upperBoundsTx);
         optimizedTransmitterStep1 = diag(windowVector);
         fprintf('Finished optimization.\n')
-        fprintf('Result for %s: %.f', typeOFDM, result)
+        fprintf('Result for %s: %.4f\n', typeOFDM, result)
         % Receiver
         fprintf('Starting optimization for receiver...\n')
         funRxStep1 = optimization_function_rx(diag(initialValuesTx), ...
@@ -216,7 +266,7 @@ switch typeOFDM
             [], [], [], [], lowerBoundsRx, upperBoundsRx);
         optimizedReceiverStep1 = diag(windowVector);
         fprintf('Finished optimization.\n')
-        fprintf('Result for %s: %.f', typeOFDM, result)
+        fprintf('Result for %s: %.4f\n', typeOFDM, result)
         % Second step
         fprintf('Starting step 2:\n')
         % Transmitter
@@ -229,7 +279,7 @@ switch typeOFDM
             [], [], [], [], lowerBoundsTx, upperBoundsTx);
         optimizedTransmitterStep2 = diag(windowVector);
         fprintf('Finished optimization.\n')
-        fprintf('Result for %s: %.f', typeOFDM, result)
+        fprintf('Result for %s: %.4f\n', typeOFDM, result)
         % Receiver
         fprintf('Starting optimization for receiver...\n')
         funRxStep2 = optimization_function_rx(optimizedTransmitterStep1, ...
@@ -240,7 +290,7 @@ switch typeOFDM
             [], [], [], [], lowerBoundsRx, upperBoundsRx);
         optimizedReceiverStep2 = diag(windowVector);
         fprintf('Finished optimization.\n')
-        fprintf('Result for %s: %.f', typeOFDM, result)
+        fprintf('Result for %s: %.4f\n', typeOFDM, result)
         % Third step
         fprintf('Starting step 3:\n')
         % Transmitter
@@ -253,7 +303,7 @@ switch typeOFDM
             [], [], [], [], lowerBoundsTx, upperBoundsTx);
         optimizedTransmitterStep3 = diag(windowVector);
         fprintf('Finished optiization.\n')
-        fprintf('Result for %s: %.f', typeOFDM, result)
+        fprintf('Result for %s: %.4f\n', typeOFDM, result)
         % Receiver
         fprintf('Starting optimization for receiver...\n')
         funRxStep3 = optimization_function_rx(optimizedTransmitterStep2, ...
@@ -264,11 +314,11 @@ switch typeOFDM
             [], [], [], [], lowerBoundsRx, upperBoundsTx);
         optimizedReceiverStep3 = diag(windowVector);
         fprintf('Finished optimization.\n')
-        fprintf('Result for %s: %.f', typeOFDM, result)
+        fprintf('Result for %s: %.4f\n', typeOFDM, result)
         % Save results
         fprintf('Saving results...\n')
         fileName = strcat('optimal_win_', typeOFDM, '_VehA200_', ...
-            cyclicPrefix, 'CP_', cyclicSuffix, 'CS');
+            num2str(cyclicPrefix), 'CP');
         save([folderPath fileName], 'optimizedTransmitterStep1', ...
             'optimizedReceiverStep1', 'optimizedTransmitterStep2', ...
             'optimizedReceiverStep2','optimizedTransmitterStep3', ...

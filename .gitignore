@@ -2,6 +2,7 @@ random_search/*
 references/*
 channels/*
 optimized_windows/*
+ber_results/*
 *.asv
 *.mat
 

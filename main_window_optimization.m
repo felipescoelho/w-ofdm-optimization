@@ -1,30 +1,6 @@
 % main_window_optimization.m
 %   This script will perform the optimization of the windowed-OFDM for all
-%   size tested w-OFDM systems wtx, wrx, WOLA, CPW, CPwtx, and CPwrx.
-%
-% I have three variables to define...
-%   - mu: the length of my cyclic prefix
-%   - beta: the length of my rise and fall tail for Tx window (only wtx,
-%   WOLA, CPW, and CPwtx)
-%   - delta: the length of my rise and fall tail for Rx window (only wrx,
-%   CPW, WOLA, and CPwrx)
-%
-% All other variables are derived from these.
-%   - rho: length of the cyclic suffix
-%       . wtx, WOLA: rho = beta
-%       . CPW: rho = delta/2 + beta
-%       . wrx: rho = delta/2
-%   - gamma: number of samples removed at reception
-%       . wtx: gamma = mu
-%       . wrx, CPW: gamma = mu - delta/2
-%       . WOLA, CPwrx: gamma = mu - delta
-%       . CPwtx: gamma = mu - delta
-%   - kappa: number of samples in circular shift
-%       . WOLA, CPwrx: delta/2
-%       . CPwtx: beta
-%
-% I want to analyse based on the length of redundancy.
-%   - redundancy = mu + rho
+%   w-OFDM systems wtx, wrx, WOLA, CPW, CPwtx, and CPwrx.
 %
 % Author: Luiz Felipe Coelho - luizfelipe.coelho@smt.ufrj.br
 % Set 30, 2022
@@ -39,6 +15,9 @@ close all
 fprintf('Starting main_window_optimization.m ... \n\n')
 fprintf('This script runs the optimization process for the windows\n')
 fprintf('in the different w-OFDM systems.\n\n')
+
+
+global folderName
 
 
 folderName = 'optimized_windows';
@@ -67,6 +46,7 @@ fprintf('------------------------------------\n')
 fprintf('Starting run ...\n\n')
 fields = fieldnames(settingsData);
 clear settingsData
+
 for fieldIndex = 1:length(fields)
     fieldName = fields{fieldIndex};
     dataLoader = load(settingsFileName);
@@ -80,8 +60,8 @@ for fieldIndex = 1:length(fields)
             for cpIndex = 1:length(cpLengthVect)
                 cpLength = cpLengthVect(cpIndex);
                 csLength = tailTx;
-                prefixRemoval = cpLength;
-                circularShift = 0;
+                prefixRemovalLength = cpLength;
+                circularShiftLength = 0;
                 fprintf('--------------------------------------------\n')
                 fprintf('Settings:\n')
                 fprintf('N = %u (Subcarriers)\n', numSubcar)
@@ -89,11 +69,12 @@ for fieldIndex = 1:length(fields)
                 fprintf('rho = %u (CS length)\n', csLength)
                 fprintf('beta = %u (Tx tail)\n', tailTx)
                 fprintf('delta = %u (Rx tail)\n', tailRx)
-                fprintf('gamma = %u (Samples removed Rx)\n', prefixRemoval)
-                fprintf('kappa = %u (Circ shift)\n', circularShift)
+                fprintf('gamma = %u (Samples removed Rx)\n', ...
+                    prefixRemovalLength)
+                fprintf('kappa = %u (Circ shift)\n', circularShiftLength)
                 optimize_window(fieldName, cpLength, csLength, ...
-                    numSubcar, tailTx, tailRx, prefixRemoval, ...
-                    circularShift, folderName)
+                    numSubcar, tailTx, tailRx, prefixRemovalLength, ...
+                    circularShiftLength)
             end
         case 'wrx'
             tailTx = dataLoader.settingsData.(fieldName).tailTx;
@@ -101,8 +82,8 @@ for fieldIndex = 1:length(fields)
             for cpIndex = 1:length(cpLengthVect)
                 cpLength = cpLengthVect(cpIndex);
                 csLength = tailRx/2;
-                prefixRemoval = cpLength - tailRx/2;
-                circularShift = 0;
+                prefixRemovalLength = cpLength - tailRx/2;
+                circularShiftLength = 0;
                 fprintf('--------------------------------------------\n')
                 fprintf('Settings:\n')
                 fprintf('N = %u (Subcarriers)\n', numSubcar)
@@ -110,11 +91,12 @@ for fieldIndex = 1:length(fields)
                 fprintf('rho = %u (CS length)\n', csLength)
                 fprintf('beta = %u (Tx tail)\n', tailTx)
                 fprintf('delta = %u (Rx tail)\n', tailRx)
-                fprintf('gamma = %u (Samples removed Rx)\n', prefixRemoval)
-                fprintf('kappa = %u (Circ shift)\n', circularShift)
+                fprintf('gamma = %u (Samples removed Rx)\n', ...
+                    prefixRemovalLength)
+                fprintf('kappa = %u (Circ shift)\n', circularShiftLength)
                 optimize_window(fieldName, cpLength, csLength, ...
-                    numSubcar, tailTx, tailRx, prefixRemoval, ...
-                    circularShift, folderName)
+                    numSubcar, tailTx, tailRx, prefixRemovalLength, ...
+                    circularShiftLength)
             end
         case 'WOLA'
             tailTx = dataLoader.settingsData.(fieldName).tailTx;
@@ -122,8 +104,8 @@ for fieldIndex = 1:length(fields)
             for cpIndex = 1:length(cpLengthVect)
                 cpLength = cpLengthVect(cpIndex);
                 csLength = tailTx;
-                prefixRemoval = cpLength - tailRx;
-                circularShift = tailRx/2;
+                prefixRemovalLength = cpLength - tailRx;
+                circularShiftLength = tailRx/2;
                 fprintf('--------------------------------------------\n')
                 fprintf('Settings:\n')
                 fprintf('N = %u (Subcarriers)\n', numSubcar)
@@ -131,11 +113,12 @@ for fieldIndex = 1:length(fields)
                 fprintf('rho = %u (CS length)\n', csLength)
                 fprintf('beta = %u (Tx tail)\n', tailTx)
                 fprintf('delta = %u (Rx tail)\n', tailRx)
-                fprintf('gamma = %u (Samples removed Rx)\n', prefixRemoval)
-                fprintf('kappa = %u (Circ shift)\n', circularShift)
+                fprintf('gamma = %u (Samples removed Rx)\n', ...
+                    prefixRemovalLength)
+                fprintf('kappa = %u (Circ shift)\n', circularShiftLength)
                 optimize_window(fieldName, cpLength, csLength, ...
-                    numSubcar, tailTx, tailRx, prefixRemoval, ...
-                    circularShift, folderName)
+                    numSubcar, tailTx, tailRx, prefixRemovalLength, ...
+                    circularShiftLength)
             end
         case 'CPW'
             tailTx = dataLoader.settingsData.(fieldName).tailTx;
@@ -143,8 +126,8 @@ for fieldIndex = 1:length(fields)
             for cpIndex = 1:length(cpLengthVect)
                 cpLength = cpLengthVect(cpIndex);
                 csLength = tailTx + tailRx/2;
-                prefixRemoval = cpLength - tailRx/2;
-                circularShift = 0;
+                prefixRemovalLength = cpLength - tailRx/2;
+                circularShiftLength = 0;
                 fprintf('--------------------------------------------\n')
                 fprintf('Settings:\n')
                 fprintf('N = %u (Subcarriers)\n', numSubcar)
@@ -152,11 +135,12 @@ for fieldIndex = 1:length(fields)
                 fprintf('rho = %u (CS length)\n', csLength)
                 fprintf('beta = %u (Tx tail)\n', tailTx)
                 fprintf('delta = %u (Rx tail)\n', tailRx)
-                fprintf('gamma = %u (Samples removed Rx)\n', prefixRemoval)
-                fprintf('kappa = %u (Circ shift)\n', circularShift)
+                fprintf('gamma = %u (Samples removed Rx)\n', ...
+                    prefixRemovalLength)
+                fprintf('kappa = %u (Circ shift)\n', circularShiftLength)
                 optimize_window(fieldName, cpLength, csLength, ...
-                    numSubcar, tailTx, tailRx, prefixRemoval, ...
-                    circularShift, folderName)
+                    numSubcar, tailTx, tailRx, prefixRemovalLength, ...
+                    circularShiftLength)
             end
         case 'CPwtx'
             tailTx = dataLoader.settingsData.(fieldName).tailTx;
@@ -164,8 +148,8 @@ for fieldIndex = 1:length(fields)
             for cpIndex = 1:length(cpLengthVect)
                 cpLength = cpLengthVect(cpIndex);
                 csLength = 0;
-                prefixRemoval = cpLength - tailTx;
-                circularShift = tailTx;
+                prefixRemovalLength = cpLength - tailTx;
+                circularShiftLength = tailTx;
                 fprintf('--------------------------------------------\n')
                 fprintf('Settings:\n')
                 fprintf('N = %u (Subcarriers)\n', numSubcar)
@@ -173,11 +157,12 @@ for fieldIndex = 1:length(fields)
                 fprintf('rho = %u (CS length)\n', csLength)
                 fprintf('beta = %u (Tx tail)\n', tailTx)
                 fprintf('delta = %u (Rx tail)\n', tailRx)
-                fprintf('gamma = %u (Samples removed Rx)\n', prefixRemoval)
-                fprintf('kappa = %u (Circ shift)\n', circularShift)
+                fprintf('gamma = %u (Samples removed Rx)\n', ...
+                    prefixRemovalLength)
+                fprintf('kappa = %u (Circ shift)\n', circularShiftLength)
                 optimize_window(fieldName, cpLength, csLength, ...
-                    numSubcar, tailTx, tailRx, prefixRemoval, ...
-                    circularShift, folderName)
+                    numSubcar, tailTx, tailRx, prefixRemovalLength, ...
+                    circularShiftLength)
             end
         case 'CPwrx'
             tailTx = dataLoader.settingsData.(fieldName).tailTx;
@@ -185,8 +170,8 @@ for fieldIndex = 1:length(fields)
             for cpIndex = 1:length(cpLengthVect)
                 cpLength = cpLengthVect(cpIndex);
                 csLength = 0;
-                prefixRemoval = cpLength - tailRx;
-                circularShift = tailRx/2;
+                prefixRemovalLength = cpLength - tailRx;
+                circularShiftLength = tailRx/2;
                 fprintf('--------------------------------------------\n')
                 fprintf('Settings:\n')
                 fprintf('N = %u (Subcarriers)\n', numSubcar)
@@ -194,11 +179,12 @@ for fieldIndex = 1:length(fields)
                 fprintf('rho = %u (CS length)\n', csLength)
                 fprintf('beta = %u (Tx tail)\n', tailTx)
                 fprintf('delta = %u (Rx tail)\n', tailRx)
-                fprintf('gamma = %u (Samples removed Rx)\n', prefixRemoval)
-                fprintf('kappa = %u (Circ shift)\n', circularShift)
+                fprintf('gamma = %u (Samples removed Rx)\n', ...
+                    prefixRemovalLength)
+                fprintf('kappa = %u (Circ shift)\n', circularShiftLength)
                 optimize_window(fieldName, cpLength, csLength, ...
-                    numSubcar, tailTx, tailRx, prefixRemoval, ...
-                    circularShift, folderName)
+                    numSubcar, tailTx, tailRx, prefixRemovalLength, ...
+                    circularShiftLength)
             end
         otherwise
             continue
@@ -206,217 +192,151 @@ for fieldIndex = 1:length(fields)
 end
 
 
-function optimize_window(typeOFDM, cyclicPrefix, cyclicSuffix, ...
-    numberSubcarriers, tailTx, tailRx, prefixRemoval, circularShift, ...
-    folderName)
+function optimize_window(typeOFDM, cpLength, csLength, numSubcar, ...
+    tailTx, tailRx, prefixRemovalLength, circularShiftLength)
 % Function to generate the optimized windows.
 %
 % - Input:
 %   . typeOFDM: Type of OFDM system
-%   . cyclicPrefix: Number of samples in cyclic prefix (mu)
-%   . cyclicSuffix: Number of samples in cyclic suffix (rho)
-%   . numberSubcarriers: Number of subcarriers in system (N)
+%   . cpLength: Number of samples in cyclic prefix (mu)
+%   . csLength: Number of samples in cyclic suffix (rho)
+%   . numSubcar: Number of subcarriers in system (N)
 %   . tailTx: Number of samples in rise and fall tail at transmitter (beta)
 %   . tailRx: Number of samples in rise and fall at receiver (delta)
-%   . prefixRemoval: Number of samples (from cyclic prefix) to be removed
-%   at the receiver. (gamma)
-%   . circularShift: Number of samples in circular shift, for WOLA, CPwtx,
-%   and CPwrx. (kappa)
-%   . folderName: Name of the folder to save optimized windows.
+%   . prefixRemovalLength: Number of samples (from cyclic prefix) to be
+%   removed at the receiver. (gamma)
+%   . circularShiftLength: Number of samples in circular shift, for WOLA,
+%   CPwtx, and CPwrx. (kappa)
+
+global folderName
 
 folderPath = [cd '/' folderName '/'];
 load('./channels/vehA200channel2.mat', 'vehA200channel2')
 averageChannel = mean(vehA200channel2, 1);
-interferenceArray = array_ici_isi(averageChannel, numberSubcarriers, ...
-    cyclicPrefix, cyclicSuffix, tailTx, tailRx, prefixRemoval);
+interferenceArray = array_ici_isi(averageChannel, numSubcar, ...
+    cpLength, csLength, tailTx, tailRx, prefixRemovalLength);
 intercarrierInterference = interferenceArray(:, :, 1);
 intersymbolInterference = sum(interferenceArray(:, :, 2:end), 3);
+windowTxRC = transmitter_rc_window(numSubcar, cpLength, csLength, tailTx);
+windowRxRC = receiver_rc_window(numSubcar, tailRx);
 switch typeOFDM
     case {'wtx', 'CPwtx'}
-        % Transmitter process
-        redundancyMatrix = add_redundancy_matrix(numberSubcarriers, ...
-            cyclicPrefix, cyclicSuffix);
-        invertTransform = dftmtx(numberSubcarriers)'/numberSubcarriers;
-        % Receiver process
-        receiverMatrix = rx_wofdm_matrix(numberSubcarriers, tailRx, ...
-            prefixRemoval, circularShift);
-        % Optimization process
-        fprintf('Starting optimization process\n')
-        funPreTx = @(x) norm(receiverMatrix*intercarrierInterference ...
-            * (diag(x)*redundancyMatrix*invertTransform) ...
-            - diag(diag(receiverMatrix*intercarrierInterference ...
-            * (diag(x)*redundancyMatrix*invertTransform))), 'fro') ...
-            + norm(receiverMatrix*intersymbolInterference ...
-            * (diag(x)*redundancyMatrix*invertTransform));
-        initialValues = diag(transmitter_rc_window(numberSubcarriers, ...
-            cyclicPrefix, cyclicSuffix, tailTx));
+        objectiveFunction = objective_function_tx(windowRxRC, numSubcar, ...
+            tailRx, prefixRemovalLength, circularShiftLength, cpLength, ...
+            csLength, intercarrierInterference, intersymbolInterference);
+        initialValue = diag(windowTxRC);
         lowerBounds = [zeros(tailTx, 1); ...
-            ones(numberSubcarriers+cyclicPrefix-tailTx, 1); ...
+            ones(numSubcar+cpLength+csLength-2*tailTx, 1); ...
             zeros(tailTx, 1)];
         upperBounds = [ones(tailTx, 1); ...
-            ones(numberSubcarriers+cyclicPrefix-tailTx, 1); ...
+            ones(numSubcar+cpLength+csLength-2*tailTx, 1); ...
             ones(tailTx, 1)];
-        [windowVector, result] = fmincon(funPreTx, initialValues, [], ...
-            [], [], [], lowerBounds, upperBounds);
-        optimizedTransmitterWindow = diag(windowVector);
+        windowVector = fmincon(objectiveFunction, initialValue, ...
+            [], [], [], [], lowerBounds, upperBounds);
+        optimizedWindow = diag(windowVector);
         fprintf('Finished optimization process\n')
-        fprintf('Result for %s: %.4f W.\n', typeOFDM, result)
         % Save results
         fprintf('Saving results...\n')
         fileName = strcat('optimal_win_', typeOFDM, '_VehA200_', ...
-            num2str(cyclicPrefix), 'CP');
-        save([folderPath fileName], 'optimizedTransmitterWindow')
+            num2str(cpLength), 'CP');
+        save([folderPath fileName], 'optimizedWindow')
         fprintf('Optimized windows were successfully saved into file.\n')
         fprintf('\n')
     case {'wrx', 'CPwrx'}
-        % Transmitter process
-        transmitterMatrix = tx_wofdm_matrix(numberSubcarriers, ...
-            cyclicPrefix, cyclicSuffix, tailTx);
-        % Receiver process
-        transformMatrix = dftmtx(numberSubcarriers);
-        circularShiftMatrix = circular_shift_matrix(numberSubcarriers, ...
-            circularShift);
-        overlapAdd = overlap_and_add_matrix(numberSubcarriers, tailRx);
-        redundancyRemove = remove_redundancy_matrix(numberSubcarriers, ...
-            tailRx, prefixRemoval);
-        % Optimization process
-        fprintf('Starting optimization process\n')
-        funPreRx = @(x) norm((transformMatrix*circularShiftMatrix ...
-            * overlapAdd*diag(x)*redundancyRemove) ...
-            * intercarrierInterference*transmitterMatrix ...
-            - diag(diag((transformMatrix*circularShiftMatrix ...
-            * overlapAdd*diag(x)*redundancyRemove) ...
-            * intercarrierInterference*transmitterMatrix)), 'fro') ...
-            + norm((transformMatrix*circularShiftMatrix*overlapAdd ...
-            * diag(x)*redundancyRemove)*intersymbolInterference ...
-            * transmitterMatrix, 'fro');
-        initialValues = diag(receiver_rc_window(numberSubcarriers, ...
-            tailRx));
+        objectiveFunction = objective_function_rx(windowTxRC, ...
+            numSubcar, cpLength, csLength, circularShiftLength, tailRx, ...
+            prefixRemovalLength, intercarrierInterference, ...
+            intersymbolInterference);
+        initialValue = diag(windowRxRC);
         lowerBounds = [zeros(tailRx, 1); ...
-            ones(numberSubcarriers-tailRx, 1); zeros(tailRx, 1)];
+            ones(numSubcar-tailRx, 1); zeros(tailRx, 1)];
         upperBounds = [ones(tailRx, 1); ...
-            ones(numberSubcarriers-tailRx, 1); ones(tailRx, 1)];
-        [windowVector, result] = fmincon(funPreRx, initialValues, [], ...
-            [], [], [], lowerBounds, upperBounds);
-        optimizedReceiverWindow = diag(windowVector);
+            ones(numSubcar-tailRx, 1); ones(tailRx, 1)];
+        windowVector = fmincon(objectiveFunction, ...
+            initialValue, [], [], [], [], lowerBounds, upperBounds);
+        optimizedWindow = diag(windowVector);
         fprintf('Finished optimization process\n')
-        fprintf('Result for %s: %.4f\n.', typeOFDM, result)
         % Save results
         fprintf('Saving results...\n')
         fileName = strcat('optimal_win_', typeOFDM, '_VehA200_', ...
-            num2str(cyclicPrefix), 'CP');
-        save([folderPath fileName], 'optimizedReceiverWindow')
+            num2str(cpLength), 'CP');
+        save([folderPath fileName], 'optimizedWindow')
         fprintf('Optimized windows were successfully saved into file.\n')
         fprintf('\n')
     case {'WOLA', 'CPW'}
-        % Transmitter process
-        redundancyMatrix = add_redundancy_matrix(numberSubcarriers, ...
-            cyclicPrefix, cyclicSuffix);
-        invertTransform = dftmtx(numberSubcarriers)'/numberSubcarriers;
-        % Receiver process
-        transformMatrix = dftmtx(numberSubcarriers);
-        circularShiftMatrix = circular_shift_matrix(numberSubcarriers, ...
-            circularShift);
-        overlapAdd = overlap_and_add_matrix(numberSubcarriers, tailRx);
-        redundancyRemove = remove_redundancy_matrix(numberSubcarriers, ...
-            tailRx, prefixRemoval);
-        % Optimization process
-        % Initialization
-        fprintf('Starting optimization process\n')
-        initialValuesTx = diag(transmitter_rc_window(numberSubcarriers, ...
-            cyclicPrefix, cyclicSuffix, tailTx));
-        initialValuesRx = diag(receiver_rc_window(numberSubcarriers, ...
-            tailRx));
         lowerBoundsTx = [zeros(tailTx, 1); ...
-            ones(numberSubcarriers+cyclicPrefix-tailTx, 1); ...
+            ones(numSubcar+cpLength+csLength-2*tailTx, 1); ...
             zeros(tailTx, 1)];
         upperBoundsTx = [ones(tailTx, 1); ...
-            ones(numberSubcarriers+cyclicPrefix-tailTx, 1); ...
+            ones(numSubcar+cpLength+csLength-2*tailTx, 1); ...
             ones(tailTx, 1)];
         lowerBoundsRx = [zeros(tailRx, 1); ...
-            ones(numberSubcarriers-tailRx, 1); zeros(tailRx, 1)];
+            ones(numSubcar-tailRx, 1); zeros(tailRx, 1)];
         upperBoundsRx = [ones(tailRx, 1); ...
-            ones(numberSubcarriers-tailRx, 1); ones(tailRx, 1)];
-        % First step
-        fprintf('Starting step 1:\n')
-        % Transmitter
-        fprintf('Starting optimization for transmitter...\n')
-        funTxStep1 = optimization_function_tx(diag(initialValuesRx), ...
-            transformMatrix, circularShiftMatrix, overlapAdd, ...
-            redundancyRemove, redundancyMatrix, invertTransform, ...
-            intercarrierInterference, intersymbolInterference);
-        [windowVector, result] = fmincon(funTxStep1, initialValuesTx, ...
-            [], [], [], [], lowerBoundsTx, upperBoundsTx);
-        optimizedTransmitterStep1 = diag(windowVector);
-        fprintf('Finished optimization.\n')
-        fprintf('Result for %s: %.4f\n', typeOFDM, result)
-        % Receiver
-        fprintf('Starting optimization for receiver...\n')
-        funRxStep1 = optimization_function_rx(diag(initialValuesTx), ...
-            transformMatrix, circularShiftMatrix, overlapAdd, ...
-            redundancyRemove, redundancyMatrix, invertTransform, ...
-            intercarrierInterference, intersymbolInterference);
-        [windowVector, result] = fmincon(funRxStep1, initialValuesRx, ...
-            [], [], [], [], lowerBoundsRx, upperBoundsRx);
-        optimizedReceiverStep1 = diag(windowVector);
-        fprintf('Finished optimization.\n')
-        fprintf('Result for %s: %.4f\n', typeOFDM, result)
-        % Second step
-        fprintf('Starting step 2:\n')
-        % Transmitter
-        fprintf('Starting optimization for transmitter...\n')
-        funTxStep2 = optimization_function_tx(optimizedReceiverStep1, ...
-            transformMatrix, circularShiftMatrix, overlapAdd, ...
-            redundancyRemove, redundancyMatrix, invertTransform, ...
-            intercarrierInterference, intersymbolInterference);
-        [windowVector, result] = fmincon(funTxStep2, initialValuesTx, ...
-            [], [], [], [], lowerBoundsTx, upperBoundsTx);
-        optimizedTransmitterStep2 = diag(windowVector);
-        fprintf('Finished optimization.\n')
-        fprintf('Result for %s: %.4f\n', typeOFDM, result)
-        % Receiver
-        fprintf('Starting optimization for receiver...\n')
-        funRxStep2 = optimization_function_rx(optimizedTransmitterStep1, ...
-            transformMatrix, circularShiftMatrix, overlapAdd, ...
-            redundancyRemove, redundancyMatrix, invertTransform, ...
-            intercarrierInterference, intersymbolInterference);
-        [windowVector, result] = fmincon(funRxStep2, initialValuesRx, ...
-            [], [], [], [], lowerBoundsRx, upperBoundsRx);
-        optimizedReceiverStep2 = diag(windowVector);
-        fprintf('Finished optimization.\n')
-        fprintf('Result for %s: %.4f\n', typeOFDM, result)
-        % Third step
-        fprintf('Starting step 3:\n')
-        % Transmitter
-        fprintf('Starting optimization for transmitter...\n')
-        funTxStep3 = optimization_function_tx(optimizedReceiverStep2, ...
-            transformMatrix, circularShiftMatrix, overlapAdd, ...
-            redundancyRemove, redundancyMatrix, invertTransform, ...
-            intercarrierInterference, intersymbolInterference);
-        [windowVector, result] = fmincon(funTxStep3, initialValuesTx, ...
-            [], [], [], [], lowerBoundsTx, upperBoundsTx);
-        optimizedTransmitterStep3 = diag(windowVector);
-        fprintf('Finished optiization.\n')
-        fprintf('Result for %s: %.4f\n', typeOFDM, result)
-        % Receiver
-        fprintf('Starting optimization for receiver...\n')
-        funRxStep3 = optimization_function_rx(optimizedTransmitterStep2, ...
-            transformMatrix, circularShiftMatrix, overlapAdd, ...
-            redundancyRemove, redundancyMatrix, invertTransform, ...
-            intercarrierInterference, intersymbolInterference);
-        [windowVector, result] = fmincon(funRxStep3, initialValuesRx, ...
-            [], [], [], [], lowerBoundsRx, upperBoundsTx);
-        optimizedReceiverStep3 = diag(windowVector);
-        fprintf('Finished optimization.\n')
-        fprintf('Result for %s: %.4f\n', typeOFDM, result)
+            ones(numSubcar-tailRx, 1); ones(tailRx, 1)];
+        
+        objectiveFunctionCaseAStep1 = objective_function_tx(windowRxRC, ...
+            numSubcar, tailRx, prefixRemovalLength, circularShiftLength, ...
+            cpLength, csLength, intercarrierInterference, ...
+            intersymbolInterference);
+        initialValue = diag(windowTxRC);
+        windowVectorAStep1 = fmincon(objectiveFunctionCaseAStep1, ...
+            initialValue, [], [], [], [], lowerBoundsTx, upperBoundsTx);
+        optimizedWindowCaseAStep1 = diag(windowVectorAStep1);
+        
+        objectiveFunctionCaseAStep2 = objective_function_rx(windowTxRC, ...
+            numSubcar, cpLength, csLength, circularShiftLength, tailRx, ...
+            prefixRemovalLength, intercarrierInterference, ...
+            intersymbolInterference);
+        initialValue = diag(windowRxRC);
+        windowVectorAStep2 = fmincon(objectiveFunctionCaseAStep2, ...
+            initialValue, [], [], [], [], lowerBoundsRx, upperBoundsRx);
+        optimizedWindowCaseAStep2 = diag(windowVectorAStep2);
+        
+        objectiveFunctionCaseAStep3 = objective_function_tx(windowRxRC, ...
+            numSubcar, tailRx, prefixRemovalLength, circularShiftLength, ...
+            cpLength, csLength, intercarrierInterference, ...
+            intersymbolInterference);
+        initialValue = windowVectorAStep1;
+        windowVectorAStep3 = fmincon(objectiveFunctionCaseAStep3, ...
+            initialValue, [], [], [], [], lowerBoundsTx, upperBoundsTx);
+        optimizedWindowCaseAStep3 = diag(windowVectorAStep3);
+        
+        objectiveFunctionCaseBStep1 = objective_function_rx(windowTxRC, ...
+            numSubcar, cpLength, csLength, circularShiftLength, tailRx, ...
+            prefixRemovalLength, intercarrierInterference, ...
+            intersymbolInterference);
+        initialValue = diag(windowRxRC);
+        windowVectorBStep1 = fmincon(objectiveFunctionCaseBStep1, ...
+            initialValue, [], [], [], [], lowerBoundsRx, upperBoundsRx);
+        optimizedWindowCaseBStep1 = diag(windowVectorBStep1);
+        
+        objectiveFunctionCaseBStep2 = objective_function_tx(windowRxRC, ...
+            numSubcar, tailRx, prefixRemovalLength, circularShiftLength, ...
+            cpLength, csLength, intercarrierInterference, ...
+            intersymbolInterference);
+        initialValue = diag(windowTxRC);
+        windowVectorBStep2 = fmincon(objectiveFunctionCaseBStep2, ...
+            initialValue, [], [], [], [], lowerBoundsTx, upperBoundsTx);
+        optimizedWindowCaseBStep2 = diag(windowVectorBStep2);
+        
+        objectiveFunctionCaseBStep3 = objective_function_rx(windowTxRC, ...
+            numSubcar, cpLength, csLength, circularShiftLength, tailRx, ...
+            prefixRemovalLength, intercarrierInterference, ...
+            intersymbolInterference);
+        initialValue = windowVectorBStep1;
+        windowVectorBStep3 = fmincon(objectiveFunctionCaseBStep3, ...
+            initialValue, [], [], [], [], lowerBoundsRx, upperBoundsRx);
+        optimizedWindowCaseBStep3 = diag(windowVectorBStep3);
+        
         % Save results
         fprintf('Saving results...\n')
         fileName = strcat('optimal_win_', typeOFDM, '_VehA200_', ...
-            num2str(cyclicPrefix), 'CP');
-        save([folderPath fileName], 'optimizedTransmitterStep1', ...
-            'optimizedReceiverStep1', 'optimizedTransmitterStep2', ...
-            'optimizedReceiverStep2','optimizedTransmitterStep3', ...
-            'optimizedReceiverStep3')
+            num2str(cpLength), 'CP');
+        save([folderPath fileName], 'optimizedWindowCaseAStep1', ...
+            'optimizedWindowCaseAStep2', 'optimizedWindowCaseAStep3', ...
+            'optimizedWindowCaseBStep1','optimizedWindowCaseBStep2', ...
+            'optimizedWindowCaseBStep3')
         fprintf('Optimized windows were successfully saved into file.')
         fprintf('\n')
 end
@@ -424,10 +344,9 @@ end
 end
 
 
-function optimizationFunction = optimization_function_tx(windowRx, ...
-    transformMatrix, circularShiftMatrix, overlapAdd, redundancyRemove, ...
-    redundancyMatrix, invertTransform, intercarrierInterference, ...
-    intersymbolInterference)
+function objectiveFunction = objective_function_tx(windowRx, ...
+    numSubcar, tailRx, prefixRemovalLength, circularShiftLength, ...
+    cpLength, csLength, intercarrierInterference, intersymbolInterference)
 % Function to help writing the optimization functions for Tx
 %
 % - Input:
@@ -447,34 +366,35 @@ function optimizationFunction = optimization_function_tx(windowRx, ...
 %   . optimizationFunction: Function to perform the optimization process
 %   using MATLAB's fmincon function.
 
-optimizationFunction = @(x) norm((transformMatrix*circularShiftMatrix ...
-    * overlapAdd*windowRx*redundancyRemove) ... 
-    * intercarrierInterference*(diag(x)*redundancyMatrix ...
-    * invertTransform) - diag(diag((transformMatrix*circularShiftMatrix ...
-    * overlapAdd*windowRx*redundancyRemove)*intercarrierInterference ...
-    * (diag(x)*redundancyMatrix*invertTransform))), 'fro') ...
-    + norm((transformMatrix*circularShiftMatrix*overlapAdd ...
-    * windowRx*redundancyRemove)*intersymbolInterference ...
-    * (diag(x)*redundancyMatrix*invertTransform));
+
+receiverMatrix = rx_wofdm_matrix(windowRx, numSubcar, tailRx, ...
+    prefixRemovalLength, circularShiftLength);
+addRedundancyMatrix = add_redundancy_matrix(numSubcar, cpLength, csLength);
+invTransformMatrix = dftmtx(numSubcar)'/numSubcar;
+
+objectiveFunction = @(x) norm(receiverMatrix ...
+    * intercarrierInterference*(diag(x)*addRedundancyMatrix ...
+    * invTransformMatrix) - diag(diag(receiverMatrix ...
+    * intercarrierInterference*(diag(x)*addRedundancyMatrix ...
+    * invTransformMatrix))), 'fro') ...
+    + norm(receiverMatrix*intersymbolInterference ...
+    * (diag(x)*addRedundancyMatrix*invTransformMatrix), 'fro');
 end
 
 
-function optimizationFunction = optimization_function_rx(windowTx, ...
-    transformMatrix, circularShiftMatrix, overlapAdd, redundancyRemove, ...
-    redundancyMatrix, invertTransform, intercarrierInterference, ...
-    intersymbolInterference)
+function objectiveFunction = objective_function_rx(windowTx, numSubcar, ...
+    cpLength, csLength, circularShiftLength, tailRx, ...
+    prefixRemovalLength, intercarrierInterference, intersymbolInterference)
 % Funtion to help writing tje optimization functions for Rx
 %
 % - Input:
 %   . windowTx: Window used at the receiver
-%   . transformMatrix: DFT matrix
-%   . circularShiftMatrix: Matrix to perform the circular shift
-%   . overlapAdd: Matrix to perform the overlap and add operation
-%   . redundancyRemove: Matrix to remove redundancy at recepetion
-%   . redundancyMatrix: Matrix to add redundancy at transmission
-%   invertTransform: IDFT matrix
-%   . intercarrierInterference: Matrix with intercarrier interference for
-%   the channel
+%   . numSubcar: Number of subcarriers in the system
+%   . cpLength: Length of the cyclic prefix
+%   . csLength: Length of the cyclic suffix
+%   . circularShiftLength: Length of the circular shift
+%   . tailRx: Length of the rise and fall tail in reception
+%   . prefixRemovalLength: Number of samples removed in reception
 %   . intersymbolInterference: Matrix with intersymbol interference for the
 %   channel.
 %
@@ -482,190 +402,188 @@ function optimizationFunction = optimization_function_rx(windowTx, ...
 %   . optimizationFunction: Function to perform the optimization process
 %   using MATLAB's fmincon function.
 
-optimizationFunction = @(x) norm((transformMatrix*circularShiftMatrix ...
-    * overlapAdd*diag(x)*redundancyRemove)*intercarrierInterference ...
-    * (windowTx*redundancyMatrix*invertTransform) - diag(diag(( ...
-    transformMatrix*circularShiftMatrix*overlapAdd*diag(x) ...
-    * redundancyRemove)*intercarrierInterference*(windowTx ...
-    * redundancyMatrix*invertTransform))), 'fro') + norm(( ...
-    transformMatrix*circularShiftMatrix*overlapAdd*diag(x) ...
-    * redundancyRemove)*intersymbolInterference*(windowTx ...
-    * redundancyMatrix*invertTransform), 'fro');
+
+transmitterMatrix = tx_wofdm_matrix(windowTx, numSubcar, cpLength, csLength);
+transformMatrix = dftmtx(numSubcar);
+circularShiftMatrix = circular_shift_matrix(numSubcar, circularShiftLength);
+overlapAddMatrix = overlap_and_add_matrix(numSubcar, tailRx);
+removeRedundancyMatrix = remove_redundancy_matrix(numSubcar, tailRx, ...
+    prefixRemovalLength);
+
+objectiveFunction = @(x) norm((transformMatrix*circularShiftMatrix ...
+    * overlapAddMatrix*diag(x)*removeRedundancyMatrix) ...
+    * intercarrierInterference*transmitterMatrix - diag(diag(( ...
+    transformMatrix*circularShiftMatrix*overlapAddMatrix*diag(x) ...
+    * removeRedundancyMatrix)*intercarrierInterference ...
+    * transmitterMatrix)), 'fro') + norm((transformMatrix ...
+    * circularShiftMatrix*overlapAddMatrix*diag(x) ...
+    * removeRedundancyMatrix)*intersymbolInterference ...
+    * transmitterMatrix, 'fro');
 end
 
 
-function [interferenceArray] = array_ici_isi(channelVector, ...
-    numberSubcarriers, cyclicPrefix, cyclicSuffix, tailTx, tailRx, ...
-    prefixRemoval)
-% Function to calculate the ICI and ISI array.
+function interfArray = array_ici_isi(channelVector, numSubcar, ...
+    cpLength, csLength, tailTx, tailRx, prefixRemovalLength)
+% Calculates the array corresponding to the channel's effects on the 
+% system.
 %
-% - Input:
-%   . channelVector: Channel's impulse response.
-%   . numberSubcarrier: Number of subcarriers in the system.
-%   . cyclicPrefix: Number of samples in cyclic prefix.
-%   . cyclicSuffix: Number of samples in cyclic suffix.
-%   . tailTx: Number of samples in rise and fall tail at transmitter.
-%   . tailRx: Number of samples in rise and fall tail at receiver.
-%   . prefixRemoval: Number of samples (from cyclic prefix) to be removed
-%   at the receiver.
-%
-% - Output:
-%   . interferenceArray : An array with elements corresponding to the
-%   channel effects in the OFDM block, where the  
+% Parameters
+% ----------
+% channelVector : Vector (row or column)
+%   Channel's impulse response.
+% numberSubcarrier : double
+%   Number of subcarriers in the system.
+% cpLength : double 
+%   Number of samples in cyclic prefix.
+% csLength : double
+%   Number of samples in cyclic suffix.
+% tailTx : double
+%   Number of samples in rise and fall tail at transmitter.
+% tailRx : double
+%   Number of samples in rise and fall tail at receiver.
+% prefixRemovalLength : double
+%   Number of samples (from cyclic prefix) to be removed at the receiver.
 
-channelOrder = length(channelVector) - 1;
-numberReceived = numberSubcarriers+tailRx+prefixRemoval;
-numberTransmitted = numberSubcarriers+cyclicPrefix+cyclicSuffix;
-channelNoise = numberTransmitted-tailTx;
-dataVectorsAffected = ceil((channelOrder+tailTx)/numberReceived) + 1;
-interferenceArray = zeros(numberReceived, numberTransmitted, ...
-    dataVectorsAffected);
-for dataVectorAffected = 0:dataVectorsAffected-1
-    for receivedSample = 0:numberReceived-1
-        for transmittedSample = 0:numberTransmitted-1
-            indexer = dataVectorAffected*channelNoise ...
-                + transmittedSample - receivedSample;
-            if (0 <= indexer) && (indexer <= channelOrder)
-                interferenceArray(receivedSample+1, ...
-                    transmittedSample+1, dataVectorAffected+1) ...
+chanOrder = length(channelVector) - 1;
+numRx = numSubcar+tailRx+prefixRemovalLength;
+numTx = numSubcar+cpLength+csLength;
+numAffected = ceil((chanOrder+tailTx)/numRx) + 1;
+chanNoise = numTx-tailTx;
+interfArray = zeros(numRx, numTx, numAffected);
+for symbAffected = 0:numAffected-1
+    for rxSample = 0:numRx-1
+        for txSample = 0:numTx-1
+            indexer = symbAffected*chanNoise + txSample - rxSample;
+            if (0 <= indexer) && (indexer <= chanOrder)
+                interfArray(rxSample+1, txSample+1, symbAffected+1) ...
                     = channelVector(indexer+1);
             end
         end
     end
 end
-
 end
 
 
-function transmissionMatrix = tx_wofdm_matrix(numberSubcarriers, ...
-    cyclicPrefix, cyclicSuffix, tailTx)
+function transmissionMatrix = tx_wofdm_matrix(windowTx, numSubcar, ...
+    cpLength, csLength)
 % Function to generate a matrix to operate the transmission process.
 %
 % - Input:
-%   . numberSubcarriers: Number of subcarriers in the system.
-%   . cyclicPrefix: Number of samples in cyclic prefix.
-%   . cuclicSuffix: Number of samples in cyclic suffix.
+%   . numSubcar: Number of subcarriers in the system.
+%   . cpLength: Number of samples in cyclic prefix.
+%   . csLength: Number of samples in cyclic suffix.
 %   . tailTx : Number of samples in transmitter window tails.
 %
 % - Output:
-%   . transmissionMatrix: Matrix that operates the transmission process.
-%   . transmitterWindow: Matrix containing the transmission window.
-%   . redundancyMatrix: Matrix that operates the redundancy addition.
-%   . invertTransform: Matrix that operates the invert discrete Fourier
-%   transform.
+%   . transmitterMatrix: Matrix that operates the transmission process.
 
-transformMatrix = dftmtx(numberSubcarriers);
-invertTransform = transformMatrix'/numberSubcarriers;
-redundancyMatrix = add_redundancy_matrix(numberSubcarriers, ...
-    cyclicPrefix, cyclicSuffix);
-transmitterWindow = transmitter_rc_window(numberSubcarriers, ...
-    cyclicPrefix, cyclicSuffix, tailTx);
-transmissionMatrix = transmitterWindow*redundancyMatrix*invertTransform;
+transformMatrix = dftmtx(numSubcar);
+invTransformMatrix = transformMatrix'/numSubcar;
+addRedundancyMatrix = add_redundancy_matrix(numSubcar, cpLength, csLength);
+transmissionMatrix = windowTx*addRedundancyMatrix*invTransformMatrix;
 end
 
 
-function receptionMatrix = rx_wofdm_matrix(numberSubcarriers, tailRx, ...
-    prefixRemoval, circularShift)
+function receptionMatrix = rx_wofdm_matrix(windowRx, numSubcar, tailRx, ...
+    prefixRemovalLength, circularShiftLength)
 % Function to generate a matrix to operate the reception process.
 %
 % - Input:
-%   . numberSubcarriers: Number of subcarriers in the system.
+%   . numSubcar: Number of subcarriers in the system.
 %   . tailRx: Number of samples in rise and fall tail at the receiver
 %   window.
-%   . prefixRemoval: Number of samples to be removed at the reception.
-%   . cicularShift: Number of samples to be shifted ("circularly").
+%   . prefixRemovalLength: Number of samples to be removed at the reception.
+%   . cicularShiftLength: Number of samples to be shifted ("circularly").
 %
 % - Output:
 %   . receptionMatrix: A matrix capable of performing all the process
 
-redundancyRemove = remove_redundancy_matrix(numberSubcarriers, tailRx, ...
-    prefixRemoval);
-receiverWindow = receiver_rc_window(numberSubcarriers, tailRx);
-overlapAdd = overlap_and_add_matrix(numberSubcarriers, tailRx);
-circularShiftMatrix = circular_shift_matrix(numberSubcarriers, ...
-    circularShift);
-transformMatrix = dftmtx(numberSubcarriers);
-receptionMatrix = transformMatrix*circularShiftMatrix*overlapAdd ...
-    *receiverWindow*redundancyRemove;
+removeRedundancyMatrix = remove_redundancy_matrix(numSubcar, tailRx, ...
+    prefixRemovalLength);
+overlapAddMatrix = overlap_and_add_matrix(numSubcar, tailRx);
+circularShiftMatrix = circular_shift_matrix(numSubcar, circularShiftLength);
+transformMatrix = dftmtx(numSubcar);
+receptionMatrix = transformMatrix*circularShiftMatrix*overlapAddMatrix ...
+    * windowRx*removeRedundancyMatrix;
 end
 
 
-function circularShiftMatrix = circular_shift_matrix(numberSubcarriers, ...
-    circularShift)
+function circularShiftMatrix = circular_shift_matrix(numSubcar, ...
+    circularShiftLength)
 % Function to generate matrix that operates the circular shift.
 %
 % - Input:
-%   . numberSubcarriers: Number of subcarriers in the system.
-%   . cicularShift: Samples in the circular shift.
+%   . numSubcar: Number of subcarriers in the system.
+%   . cicularShiftLength: Samples in the circular shift.
 %
 % - Output:
 %   . circularShiftMatrix: A matrix capable of performing the circular
 %   shift operation.
 
-identityCircularShift = eye(circularShift);
-identitySubcarriersMinusCircularShift = eye(numberSubcarriers- ...
-    circularShift);
-zerosSubcarriersMinusCircularShift = zeros(circularShift, ...
-    numberSubcarriers-circularShift);
-circularShiftMatrix = [zerosSubcarriersMinusCircularShift' ...
+identityCircularShift = eye(circularShiftLength);
+identitySubcarriersMinusCircularShift = eye(numSubcar- ...
+    circularShiftLength);
+zerosSubcarriersMinusCircularShift = zeros(circularShiftLength, ...
+    numSubcar-circularShiftLength);
+circularShiftMatrix = [zerosSubcarriersMinusCircularShift.' ...
     identitySubcarriersMinusCircularShift; identityCircularShift ...
     zerosSubcarriersMinusCircularShift];
 end
 
 
-function redundancyRemove = remove_redundancy_matrix(numberSubcarriers, ...
-    tailRx, prefixRemoval)
+function removeRedundancyMatrix = remove_redundancy_matrix(numSubcar, ...
+    tailRx, prefixRemovalLength)
 % Function to generate matrix to remove redundancy.
 %
 % - Input:
-%   . numberSubcarriers: Number of subcarriers in the system.
+%   . numSubcar: Number of subcarriers in the system.
 %   . tailRx: Number of samples in rise and fall tail at the receiver
 %   window.
-%   . prefixRemoval: Number of samples to be removed at the reception.
+%   . prefixRemovalLength: Number of samples to be removed at the reception.
 
-redundancyRemove = [zeros(numberSubcarriers+tailRx, prefixRemoval) ...
-    eye(numberSubcarriers+tailRx)];
+removeRedundancyMatrix = [zeros(numSubcar+tailRx, prefixRemovalLength) ...
+    eye(numSubcar+tailRx)];
 end
 
 
-function redundancyMatrix = add_redundancy_matrix(numberSubcarriers, ...
-    cyclicPrefix, cyclicSuffix)
+function addRedundancyMatrix = add_redundancy_matrix(numSubcar, ...
+    cpLength, csLength)
 % Function to generate the matrix that adds redundancy.
 %
 % - Input:
-%   . numberSubcarriers: Number of subcarriers in the system.
-%   . cyclicPrefix: Number of samples in cyclic prefix.
-%   . cyclicSuffix: Number of samples in cyclic suffix.
+%   . numSubcar: Number of subcarriers in the system.
+%   . cpLength: Number of samples in cyclic prefix.
+%   . csLength: Number of samples in cyclic suffix.
 %
 % - Output:
-%   . redundancyMatrix: Matrix that adds the cyclic redundancy to the
+%   . addRedundancyMatrix: Matrix that adds the cyclic redundancy to the
 %   system.
 
-identityPrefix = eye(cyclicPrefix);
-zerosPrefix = zeros(cyclicPrefix, (numberSubcarriers-cyclicPrefix));
-identitySuffix = eye(cyclicSuffix);
-zerosSuffix = zeros(cyclicSuffix, (numberSubcarriers-cyclicSuffix));
-identitySubcarriers = eye(numberSubcarriers);
-redundancyMatrix = [zerosPrefix identityPrefix; identitySubcarriers; ...
+identityPrefix = eye(cpLength);
+zerosPrefix = zeros(cpLength, (numSubcar-cpLength));
+identitySuffix = eye(csLength);
+zerosSuffix = zeros(csLength, (numSubcar-csLength));
+identitySubcarriers = eye(numSubcar);
+addRedundancyMatrix = [zerosPrefix identityPrefix; identitySubcarriers; ...
     identitySuffix zerosSuffix];
 end
 
 
-function overlapAdd = overlap_and_add_matrix(numberSubcarriers, tailRx)
+function overlapAddMatrix = overlap_and_add_matrix(numSubcar, tailRx)
 % Function to generate matrix that operates the overlap and add in the
 % samples.
 %
 % - Input:
-%   . numberSubcarriers: Number of subcarriers in the system.
+%   . numSubcar: Number of subcarriers in the system.
 %   . tailRx: Number of samples in rise and fall tails for the receiver
 %   window.
 
 identityHalfTail = eye(tailRx/2);
-identitySubcarriers = eye(numberSubcarriers-tailRx);
+identitySubcarriers = eye(numSubcar-tailRx);
 zerosHalfTail = zeros(tailRx/2);
-zerosHalfTailSubcarriers = zeros(tailRx/2, numberSubcarriers-tailRx);
-zerosTailSubcarriers = zeros(numberSubcarriers-tailRx, tailRx);
-overlapAdd = [zerosHalfTail identityHalfTail zerosHalfTailSubcarriers ...
+zerosHalfTailSubcarriers = zeros(tailRx/2, numSubcar-tailRx);
+zerosTailSubcarriers = zeros(numSubcar-tailRx, tailRx);
+overlapAddMatrix = [zerosHalfTail identityHalfTail zerosHalfTailSubcarriers ...
     zerosHalfTail identityHalfTail; zerosTailSubcarriers ...
     identitySubcarriers zerosTailSubcarriers; ...
     identityHalfTail zerosHalfTail zerosHalfTailSubcarriers ...
@@ -673,31 +591,31 @@ overlapAdd = [zerosHalfTail identityHalfTail zerosHalfTailSubcarriers ...
 end
 
 
-function transmitterWindow = transmitter_rc_window(numberSubcarriers, ...
-    cyclicPrefix, cyclicSuffix, tailTx)
+function windowTxRC = transmitter_rc_window(numSubcar, cpLength, ...
+    csLength, tailTx)
 % Function to generate the Raised Cosine transmitter window.
 %
 % - Input:
-%   . numberSubcarriers: Number of subcarriers in the system.
-%   . cyclicPrefix: Number of samples in cyclic prefix.
-%   . cyclicSuffix: Number of samples in cyclic suffix.
+%   . numSubcar: Number of subcarriers in the system.
+%   . cpLength: Number of samples in cyclic prefix.
+%   . csLength: Number of samples in cyclic suffix.
 %   . tailTx: Number of samples in rise and fall tail for the transmitter
 %   window.
 %
 % - Output:
-%   . transmitterWindow: Matrix with diagonal equivalent to the transmitted
-%   window.
+%   . windowTxRC: Matrix with diagonal equivalent to the transmitted raised
+%   cosine window.
 
 raisedCosineAxis = (-(tailTx+1)/2 + 1):1:((tailTx+1)/2 - 1);
 raisedCosine = sin(pi/2 * (.5 + raisedCosineAxis/tailTx)).^2;
-onesTransmitted = ones(1, numberSubcarriers+cyclicPrefix+cyclicSuffix ...
+onesTransmitted = ones(1, numSubcar+cpLength+csLength ...
     - 2*tailTx);
 windowVector = [raisedCosine onesTransmitted fliplr(raisedCosine)];
-transmitterWindow = diag(windowVector);
+windowTxRC = diag(windowVector);
 end
 
 
-function receiverWindow = receiver_rc_window(numberSubcarriers, tailRx)
+function windowRxRC = receiver_rc_window(numSubcar, tailRx)
 % Function to generate the Raised Cosine receiver window.
 %
 % - Input:
@@ -707,10 +625,11 @@ function receiverWindow = receiver_rc_window(numberSubcarriers, tailRx)
 
 raisedCosineAxis = (-(tailRx+1)/2+1):1:((tailRx+1)/2 - 1);
 raisedCosine = sin(pi/2 * (.5 + raisedCosineAxis/tailRx)).^2;
-onesReceived = ones(1, numberSubcarriers-tailRx);
+onesReceived = ones(1, numSubcar-tailRx);
 windowVector = [raisedCosine onesReceived fliplr(raisedCosine)];
-receiverWindow = diag(windowVector);
+windowRxRC = diag(windowVector);
 end
 
 
 % EoF
+

@@ -76,30 +76,42 @@ global figuresFolder settingsFileName
 width = 22;
 height = width*2/(1+sqrt(5));
 fontSize = 14;
-horizontalLeftDistance = 2;
-verticalBottomDistance = 3;
-plotWidth = width - 2*horizontalLeftDistance;
-plotHeight = height - 2*verticalBottomDistance;
+lineWidth = 1;
+markerSize = 15;
+horizontalLeftDistance = 2.5;
+verticalBottomDistance = 2;
+plotWidth = width - 1.5*horizontalLeftDistance;
+plotHeight = height - 1.5*verticalBottomDistance;
 settingsLoader = load(settingsFileName);
 cpVector = settingsLoader.settingsData.generalSettings.cyclicPrefix;
-fileInfo = split(fileName, '_');
-typeOFDM = fileInfo{2};
 
 fig = figure;
-fig.Name = strcat(fileInfo{1}, ' ', typeOFDM);
+fig.Name = fileName;
 fig.Color = 'w';
 fig.Units = 'centimeters';
 fig.Position = [10 10 width height];
-ax1 = axes('units', 'centimeters', 'position', ...
-    [horizontalLeftDistance, verticalBottomDistance, ...
-    plotWidth, plotHeight]);
+ax = axes('units', 'centimeters', 'position', [horizontalLeftDistance, ...
+    verticalBottomDistance, plotWidth, plotHeight]);
+subplot(ax)
+semilogy(cpVector, optVector, '*-', 'LineWidth', lineWidth, ...
+    'MarkerSize', markerSize), hold on
+semilogy(cpVector, rcVector, 'd-', 'LineWidth', lineWidth, ...
+    'MarkerSize', markerSize), hold off, grid on
+set(ax, 'FontSize', fontSize)
+set(ax, 'TickLabelInterpreter', 'latex')
+set(ax, 'linewidth', lineWidth)
+set(ax, 'XColor', 'k')
+set(ax, 'YColor', 'k')
+xlabel('Cyclic Prefix Length, $\mu$', 'Interpreter', 'latex', ...
+    'FontSize', fontSize)
+ylabel('Interference Power', 'Interpreter', 'latex', 'FontSize', fontSize)
+lgd = legend('Optimal', 'Raised Cosine');
+lgd.Interpreter = 'latex';
+lgd.FontSize = fontSize;
 
-subplot(ax1)
-semilogy(cpVector, optVector), hold on
-semilogy(cpVector, rcVector), hold off, grid on
 
 filePath = [figuresFolder '/' fileName];
-
+saveas(fig, filePath, 'epsc')
 end
 
 

@@ -190,32 +190,36 @@ channelLoader = load(channelsFilePath);
 numSubcar = settingsLoader.settingsData.generalSettings.numberSubcarriers;
 tailTx = settingsLoader.settingsData.(typeOFDM).tailTx;
 tailRx = settingsLoader.settingsData.(typeOFDM).tailRx;
-[csLength, prefixRemoval, circularShift] = calculate_parameters( ...
+[csLength, prefixRemovalLength, circularShiftLength] = calculate_parameters( ...
     typeOFDM, cpLength, tailTx, tailRx);
 % Channel inforamtion
 meanChannelImpulseResponse = mean(channelLoader.vehA200channel2, 1);
 interferenceArray = array_ici_isi(meanChannelImpulseResponse, ...
-    numSubcar, cpLength, csLength, tailTx, tailRx, prefixRemoval);
+    numSubcar, cpLength, csLength, tailTx, tailRx, prefixRemovalLength);
 intercarrierInterference = interferenceArray(:, :, 1);
 intersymbolInterference = sum(interferenceArray(:, :, 2:end), 3);
 % Generating system matrices for calculations
-transformMatrix = dftmtx(numSubcar);
-invertTransformMatrix = transformMatrix'/numSubcar;
-circularShiftMatrix = circular_shift_matrix(numSubcar, circularShift);
+transformMatrix = transform_matrix(numSubcar);
+invertTransformMatrix = conj(transformMatrix)/numSubcar;
+circularShiftMatrix = circular_shift_matrix(numSubcar, circularShiftLength);
 overlapAddMatrix = overlap_and_add_matrix(numSubcar, tailRx);
 removeRedundancyMatrix = remove_redundancy_matrix(numSubcar, tailRx, ...
-    prefixRemoval);
+    prefixRemovalLength);
 addRedundancyMatrix = add_redundancy_matrix(numSubcar, cpLength, csLength);
-interferencePower = norm((transformMatrix*circularShiftMatrix ...
-    * overlapAddMatrix*windowRx*removeRedundancyMatrix) ...
-    * intercarrierInterference*(windowTx*addRedundancyMatrix ...
-    * invertTransformMatrix) - diag(diag((transformMatrix ...
-    * circularShiftMatrix*overlapAddMatrix*windowRx ...
-    * removeRedundancyMatrix)*intercarrierInterference*(windowTx ...
-    * addRedundancyMatrix*invertTransformMatrix))), 'fro') ...
-    + norm((transformMatrix*circularShiftMatrix*overlapAddMatrix ...
-    * windowRx*removeRedundancyMatrix)*intersymbolInterference ...
-    * (windowTx*addRedundancyMatrix*invertTransformMatrix), 'fro');
+matrixA0 = transformMatrix*circularShiftMatrix*overlapAddMatrix ...
+    * windowRx*removeRedundancyMatrix*intercarrierInterference ...
+    * windowTx*addRedundancyMatrix*invertTransformMatrix;
+matrixAm = transformMatrix*circularShiftMatrix*overlapAddMatrix ...
+    * windowRx*removeRedundancyMatrix*intersymbolInterference ...
+    * windowTx*addRedundancyMatrix*invertTransformMatrix;
+matrixA0ICI1 = matrixA0 - diag(diag(matrixA0));
+matrixAmISI = diag(diag(matrixAm));
+matrixAmICI2 = matrixAm - matrixAmISI;
+PICI1 = diag(matrixA0ICI1*matrixA0ICI1');
+PISI = diag(matrixAmISI*matrixAmISI');
+PICI2 = diag(matrixAmICI2*matrixAmICI2');
+
+interferencePower = sum(PICI1 + PISI + PICI2);
 end
 
 
@@ -242,7 +246,7 @@ end
 
 
 function circularShiftMatrix = circular_shift_matrix(numSubcar, ...
-    circularShift)
+    circularShiftLength)
 % Function to generate matrix that operates the circular shift.
 %
 % - Input:
@@ -253,19 +257,18 @@ function circularShiftMatrix = circular_shift_matrix(numSubcar, ...
 %   . circularShiftMatrix: A matrix capable of performing the circular
 %   shift operation.
 
-identityCircularShift = eye(circularShift);
-identitySubcarriersMinusCircularShift = eye(numSubcar- ...
-    circularShift);
-zerosSubcarriersMinusCircularShift = zeros(circularShift, ...
-    numSubcar-circularShift);
-circularShiftMatrix = [zerosSubcarriersMinusCircularShift' ...
+identityCircularShift = eye(circularShiftLength);
+identitySubcarriersMinusCircularShift = eye(numSubcar-circularShiftLength);
+zerosSubcarriersMinusCircularShift = zeros(circularShiftLength, ...
+    numSubcar-circularShiftLength);
+circularShiftMatrix = [zerosSubcarriersMinusCircularShift.' ...
     identitySubcarriersMinusCircularShift; identityCircularShift ...
     zerosSubcarriersMinusCircularShift];
 end
 
 
 function removeRedundancyMatrix = remove_redundancy_matrix(numSubcar, ...
-    tailRx, prefixRemoval)
+    tailRx, prefixRemovalLength)
 % Function to generate matrix to remove redundancy.
 %
 % - Input:
@@ -274,7 +277,7 @@ function removeRedundancyMatrix = remove_redundancy_matrix(numSubcar, ...
 %   window.
 %   . prefixRemoval: Number of samples to be removed at the reception.
 
-removeRedundancyMatrix = [zeros(numSubcar+tailRx, prefixRemoval) ...
+removeRedundancyMatrix = [zeros(numSubcar+tailRx, prefixRemovalLength) ...
     eye(numSubcar+tailRx)];
 end
 
@@ -292,13 +295,14 @@ function addRedundancyMatrix = add_redundancy_matrix(numSubcar, ...
 %   . redundancyMatrix: Matrix that adds the cyclic redundancy to the
 %   system.
 
-identityPrefix = eye(cpLength);
-zerosPrefix = zeros(cpLength, (numSubcar-cpLength));
-identitySuffix = eye(csLength);
-zerosSuffix = zeros(csLength, (numSubcar-csLength));
-identitySubcarriers = eye(numSubcar);
-addRedundancyMatrix = [zerosPrefix identityPrefix; identitySubcarriers; ...
-    identitySuffix zerosSuffix];
+identityCP = eye(cpLength);
+zerosCPVsNumSubcarMinCP = zeros(cpLength, (numSubcar-cpLength));
+identityCS = eye(csLength);
+zerosCSVsNumSubcarMinCS = zeros(csLength, (numSubcar-csLength));
+identityNumSubcar = eye(numSubcar);
+addRedundancyMatrix = [zerosCPVsNumSubcarMinCP identityCP; ...
+    identityNumSubcar; ...
+    identityCS zerosCSVsNumSubcarMinCS];
 end
 
 
@@ -317,8 +321,8 @@ function transmitterWindow = transmitter_rc_window(numSubcar, cpLength, ...
 %   . transmitterWindow: Matrix with diagonal equivalent to the transmitted
 %   window.
 
-raisedCosineAxis = (-(tailTx+1)/2 + 1):1:((tailTx+1)/2 - 1);
-raisedCosine = sin(pi/2 * (.5 + raisedCosineAxis/tailTx)).^2;
+raisedCosineAxis = -(tailTx+1)/2 + 1:(tailTx+1)/2;
+raisedCosine = sin(pi/2*(0.5+raisedCosineAxis(1:end-1)/tailTx)).^2;
 onesTransmitted = ones(1, numSubcar+cpLength+csLength ...
     - 2*tailTx);
 windowVector = [raisedCosine onesTransmitted fliplr(raisedCosine)];
@@ -334,8 +338,8 @@ function receiverWindow = receiver_rc_window(numSubcar, tailRx)
 %   . tailRx: Number of samples in rise and fall tail for the receiver
 %   window.
 
-raisedCosineAxis = (-(tailRx+1)/2+1):1:((tailRx+1)/2 - 1);
-raisedCosine = sin(pi/2 * (.5 + raisedCosineAxis/tailRx)).^2;
+raisedCosineAxis = -(tailRx+1)/2+1:(tailRx+1)/2 ;
+raisedCosine = sin(pi/2*(0.5+raisedCosineAxis(1:end-1)/tailRx)).^2;
 onesReceived = ones(1, numSubcar-tailRx);
 windowVector = [raisedCosine onesReceived fliplr(raisedCosine)];
 receiverWindow = diag(windowVector);
@@ -343,7 +347,7 @@ end
 
 
 function interferenceArray = array_ici_isi(channelVector, numSubcar, ...
-    cpLength, csLength, tailTx, tailRx, prefixRemoval)
+    cpLength, csLength, tailTx, tailRx, prefixRemovalLength)
 % Function to calculate the ICI and ISI array.
 %
 % - Input:
@@ -360,24 +364,32 @@ function interferenceArray = array_ici_isi(channelVector, numSubcar, ...
 %   . interferenceArray : An array with elements corresponding to the
 %   channel effects in the OFDM block, where the  
 
-channelOrder = length(channelVector) - 1;
-numberReceived = numSubcar+tailRx+prefixRemoval;
-numberTransmitted = numSubcar+cpLength+csLength;
-channelNoise = numberTransmitted-tailTx;
-dataVectorsAffected = ceil((channelOrder+tailTx)/numberReceived) + 1;
-interferenceArray = zeros(numberReceived, numberTransmitted, ...
-    dataVectorsAffected);
-for dataVectorAffected = 0:dataVectorsAffected-1
-    for receivedSample = 0:numberReceived-1
-        for transmittedSample = 0:numberTransmitted-1
-            indexer = dataVectorAffected*channelNoise ...
-                + transmittedSample - receivedSample;
-            if (0 <= indexer) && (indexer <= channelOrder)
-                interferenceArray(receivedSample+1, ...
-                    transmittedSample+1, dataVectorAffected+1) ...
+chanOrder = length(channelVector) - 1;
+numRx = numSubcar+tailRx+prefixRemovalLength;
+numTx = numSubcar+cpLength+csLength;
+numAffected = ceil((chanOrder+tailTx)/numRx);
+channelNoise = numTx-tailTx;
+interferenceArray = zeros(numRx, numTx, numAffected+1);
+for symbAffected = 0:numAffected
+    for rxSample = 0:numRx-1
+        for txSample = 0:numTx-1
+            indexer = symbAffected*channelNoise + rxSample - txSample;
+            if (0 <= indexer) && (indexer <= chanOrder)
+                interferenceArray(rxSample+1, txSample+1, symbAffected+1) ...
                     = channelVector(indexer+1);
             end
         end
+    end
+end
+end
+
+
+function transformMatrix = transform_matrix(numSubcar)
+
+transformMatrix = zeros(numSubcar);
+for row = 1:numSubcar
+    for col = 1:numSubcar
+        transformMatrix(row, col) = exp(-1j*(row-1)*2*pi*(col-1)/numSubcar);
     end
 end
 end

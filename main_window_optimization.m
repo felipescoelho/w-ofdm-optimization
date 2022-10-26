@@ -370,7 +370,7 @@ function objectiveFunction = objective_function_tx(windowRx, ...
 receiverMatrix = rx_wofdm_matrix(windowRx, numSubcar, tailRx, ...
     prefixRemovalLength, circularShiftLength);
 addRedundancyMatrix = add_redundancy_matrix(numSubcar, cpLength, csLength);
-invTransformMatrix = dftmtx(numSubcar)'/numSubcar;
+invTransformMatrix = transform_matrix(numSubcar)'/numSubcar;
 
 objectiveFunction = @(x) norm(receiverMatrix ...
     * intercarrierInterference*(diag(x)*addRedundancyMatrix ...
@@ -404,7 +404,7 @@ function objectiveFunction = objective_function_rx(windowTx, numSubcar, ...
 
 
 transmitterMatrix = tx_wofdm_matrix(windowTx, numSubcar, cpLength, csLength);
-transformMatrix = dftmtx(numSubcar);
+transformMatrix = transform_matrix(numSubcar);
 circularShiftMatrix = circular_shift_matrix(numSubcar, circularShiftLength);
 overlapAddMatrix = overlap_and_add_matrix(numSubcar, tailRx);
 removeRedundancyMatrix = remove_redundancy_matrix(numSubcar, tailRx, ...
@@ -447,13 +447,13 @@ function interfArray = array_ici_isi(channelVector, numSubcar, ...
 chanOrder = length(channelVector) - 1;
 numRx = numSubcar+tailRx+prefixRemovalLength;
 numTx = numSubcar+cpLength+csLength;
-numAffected = ceil((chanOrder+tailTx)/numRx) + 1;
+numAffected = ceil((chanOrder+tailTx)/numRx);
 chanNoise = numTx-tailTx;
-interfArray = zeros(numRx, numTx, numAffected);
-for symbAffected = 0:numAffected-1
+interfArray = zeros(numRx, numTx, numAffected+1);
+for symbAffected = 0:numAffected
     for rxSample = 0:numRx-1
         for txSample = 0:numTx-1
-            indexer = symbAffected*chanNoise + txSample - rxSample;
+            indexer = symbAffected*chanNoise + rxSample - txSample;
             if (0 <= indexer) && (indexer <= chanOrder)
                 interfArray(rxSample+1, txSample+1, symbAffected+1) ...
                     = channelVector(indexer+1);
@@ -477,7 +477,7 @@ function transmissionMatrix = tx_wofdm_matrix(windowTx, numSubcar, ...
 % - Output:
 %   . transmitterMatrix: Matrix that operates the transmission process.
 
-transformMatrix = dftmtx(numSubcar);
+transformMatrix = transform_matrix(numSubcar);
 invTransformMatrix = transformMatrix'/numSubcar;
 addRedundancyMatrix = add_redundancy_matrix(numSubcar, cpLength, csLength);
 transmissionMatrix = windowTx*addRedundancyMatrix*invTransformMatrix;
@@ -502,7 +502,7 @@ removeRedundancyMatrix = remove_redundancy_matrix(numSubcar, tailRx, ...
     prefixRemovalLength);
 overlapAddMatrix = overlap_and_add_matrix(numSubcar, tailRx);
 circularShiftMatrix = circular_shift_matrix(numSubcar, circularShiftLength);
-transformMatrix = dftmtx(numSubcar);
+transformMatrix = transform_matrix(numSubcar);
 receptionMatrix = transformMatrix*circularShiftMatrix*overlapAddMatrix ...
     * windowRx*removeRedundancyMatrix;
 end
@@ -521,8 +521,7 @@ function circularShiftMatrix = circular_shift_matrix(numSubcar, ...
 %   shift operation.
 
 identityCircularShift = eye(circularShiftLength);
-identitySubcarriersMinusCircularShift = eye(numSubcar- ...
-    circularShiftLength);
+identitySubcarriersMinusCircularShift = eye(numSubcar-circularShiftLength);
 zerosSubcarriersMinusCircularShift = zeros(circularShiftLength, ...
     numSubcar-circularShiftLength);
 circularShiftMatrix = [zerosSubcarriersMinusCircularShift.' ...
@@ -583,9 +582,9 @@ identitySubcarriers = eye(numSubcar-tailRx);
 zerosHalfTail = zeros(tailRx/2);
 zerosHalfTailSubcarriers = zeros(tailRx/2, numSubcar-tailRx);
 zerosTailSubcarriers = zeros(numSubcar-tailRx, tailRx);
-overlapAddMatrix = [zerosHalfTail identityHalfTail zerosHalfTailSubcarriers ...
-    zerosHalfTail identityHalfTail; zerosTailSubcarriers ...
-    identitySubcarriers zerosTailSubcarriers; ...
+overlapAddMatrix = [zerosHalfTail identityHalfTail ...
+    zerosHalfTailSubcarriers zerosHalfTail identityHalfTail; ...
+    zerosTailSubcarriers identitySubcarriers zerosTailSubcarriers; ...
     identityHalfTail zerosHalfTail zerosHalfTailSubcarriers ...
     identityHalfTail zerosHalfTail];
 end
@@ -628,6 +627,17 @@ raisedCosine = sin(pi/2 * (.5 + raisedCosineAxis/tailRx)).^2;
 onesReceived = ones(1, numSubcar-tailRx);
 windowVector = [raisedCosine onesReceived fliplr(raisedCosine)];
 windowRxRC = diag(windowVector);
+end
+
+
+function transformMatrix = transform_matrix(numSubcar)
+
+transformMatrix = zeros(numSubcar);
+for row = 1:numSubcar
+    for col = 1:numSubcar
+        transformMatrix(row, col) = exp(-1j*(row-1)*2*pi*(col-1)/numSubcar);
+    end
+end
 end
 
 

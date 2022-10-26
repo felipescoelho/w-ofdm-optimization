@@ -18,11 +18,11 @@ global figuresFolder settingsFileName
 settingsFileName = 'settingsData.mat';
 resultsFolder = 'interference_results';
 figuresFolder = [resultsFolder '/figures'];
-if ~isfolder(resultsFolder)
+if ~isdir(resultsFolder)
     message = strcat(resultsFolder, ' does not exist.');
     error(message)
 end
-if ~isfolder(figuresFolder)
+if ~isdir(figuresFolder)
     mkdir(figuresFolder)
 end
 resultFiles = dir(fullfile(resultsFolder));

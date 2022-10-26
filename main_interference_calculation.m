@@ -16,26 +16,27 @@ fprintf('Starting main_interference_calculation.m ... \n\n')
 
 global folderName settingsFileName channelsFilePath
 folderName = 'optimized_windows';
-if ~isfolder(folderName)
+if ~isdir(folderName)
     error('Missing %s folder.', folderName)
 end
 settingsFileName = 'settingsData.mat';
-if ~isfile(settingsFileName)
-    error('Missing %s file.', settingsFileName)
-end
+% if ~isfile(settingsFileName)
+%     error('Missing %s file.', settingsFileName)
+% end
 channelsFilePath = './channels/vehA200channel2.mat';
-if ~isfile(channelsFilePath)
-    error('Missing %s file.', channelsFilePath)
-end
+% if ~isfile(channelsFilePath)
+%     error('Missing %s file.', channelsFilePath)
+% end
 
 folderToSave = 'interference_results';
-if ~isfolder(folderToSave)
+if ~isdir(folderToSave)
     mkdir(folderToSave)
 end
 typeOFDMSet = {'wtx', 'wrx', 'WOLA', 'CPW', 'CPwrx', 'CPwtx'};
 settingsLoader = load(settingsFileName);
 numSubcar = settingsLoader.settingsData.generalSettings.numberSubcarriers;
 cpLengthVector = settingsLoader.settingsData.generalSettings.cyclicPrefix;
+alpha = .99;
 for typeIndex = 1:length(typeOFDMSet)
     typeOFDM = typeOFDMSet{typeIndex};
     tailRx = settingsLoader.settingsData.(typeOFDM).tailRx;
@@ -50,17 +51,17 @@ for typeIndex = 1:length(typeOFDMSet)
                 [csLength, ~, ~] = calculate_parameters(typeOFDM, ...
                     cpLength, tailTx, tailRx);
                 fileName = select_by_cp(filesByType, cpLength);
-                windowTx = load([folderName '/' ...
-                    fileName]).optimizedWindow;
+		windowLoader = load([folderName '/' fileName]);
+                windowTx = windowLoader.optimizedWindow;
                 windowTxRC = transmitter_rc_window(numSubcar, cpLength, ...
                     csLength, tailTx);
                 windowRx = receiver_rc_window(numSubcar, tailRx);
                 optWindowInterference(cpIndex) = ...
                     calculate_interference(cpLength, typeOFDM, ...
-                    windowTx, windowRx);
+                    windowTx, windowRx, alpha);
                 rcWindowInterference(cpIndex) = ...
                     calculate_interference(cpLength, typeOFDM, ...
-                    windowTxRC, windowRx);
+                    windowTxRC, windowRx, alpha);
             end
             fileToSave = strcat('interference_', typeOFDM);
             save([folderToSave '/' fileToSave], 'rcWindowInterference', ...
@@ -74,15 +75,15 @@ for typeIndex = 1:length(typeOFDMSet)
                 fileName = select_by_cp(filesByType, cpLength);
                 windowTx = transmitter_rc_window(numSubcar, cpLength, ...
                     csLength, tailTx);
-                windowRx = load([folderName '/' ...
-                    fileName]).optimizedWindow;
+	    	windowLoader = load([folderName '/' fileName]);
+                windowRx = windowLoader.optimizedWindow;
                 windowRxRC = receiver_rc_window(numSubcar, tailRx);
                 optWindowInterference(cpIndex) = ...
                     calculate_interference(cpLength, typeOFDM, ...
-                    windowTx, windowRx);
+                    windowTx, windowRx, alpha);
                 rcWindowInterference(cpIndex) = ...
                     calculate_interference(cpLength, typeOFDM, ...
-                    windowTx, windowRxRC);
+                    windowTx, windowRxRC, alpha);
             end
             fileToSave = strcat('interference_', typeOFDM);
             save([folderToSave '/' fileToSave], 'rcWindowInterference', ...
@@ -111,25 +112,25 @@ for typeIndex = 1:length(typeOFDMSet)
                 windowCaseBStep3 = windowLoader.optimizedWindowCaseBStep3;
                 optInterferenceCaseAStep1(cpIndex) = ...
                     calculate_interference(cpLength, typeOFDM, ...
-                    windowCaseAStep1, windowRxRC);
+                    windowCaseAStep1, windowRxRC, alpha);
                 optInterferenceCaseAStep2(cpIndex) = ...
                     calculate_interference(cpLength, typeOFDM, ...
-                    windowCaseAStep1, windowCaseAStep2);
+                    windowCaseAStep1, windowCaseAStep2, alpha);
                 optInterferenceCaseAStep3(cpIndex) = ...
                     calculate_interference(cpLength, typeOFDM, ...
-                    windowCaseAStep3, windowCaseAStep2);
+                    windowCaseAStep3, windowCaseAStep2, alpha);
                 optInterferenceCaseBStep1(cpIndex) = ...
                     calculate_interference(cpLength, typeOFDM, ...
-                    windowTxRC, windowCaseBStep1);
+                    windowTxRC, windowCaseBStep1, alpha);
                 optInterferenceCaseBStep2(cpIndex) = ...
                     calculate_interference(cpLength, typeOFDM, ...
-                    windowCaseBStep2, windowCaseBStep1);
+                    windowCaseBStep2, windowCaseBStep1, alpha);
                 optInterferenceCaseBStep3(cpIndex) = ...
                     calculate_interference(cpLength, typeOFDM, ...
-                    windowCaseBStep2, windowCaseBStep3);
+                    windowCaseBStep2, windowCaseBStep3, alpha);
                 rcWindowInterference(cpIndex) = ...
                     calculate_interference(cpLength, typeOFDM, ...
-                    windowTxRC, windowRxRC);
+                    windowTxRC, windowRxRC, alpha);
             end
             fileToSave = strcat('interference_', typeOFDM);
             save([folderToSave '/' fileToSave], 'rcWindowInterference', ...
@@ -175,7 +176,7 @@ end
 
 
 function interferencePower = calculate_interference(cpLength, typeOFDM, ...
-    windowTx, windowRx)
+    windowTx, windowRx, alpha)
 % Funtion to calculate interference for a given system
 %
 % - Input
@@ -215,9 +216,9 @@ matrixAm = transformMatrix*circularShiftMatrix*overlapAddMatrix ...
 matrixA0ICI1 = matrixA0 - diag(diag(matrixA0));
 matrixAmISI = diag(diag(matrixAm));
 matrixAmICI2 = matrixAm - matrixAmISI;
-PICI1 = diag(matrixA0ICI1*matrixA0ICI1');
-PISI = diag(matrixAmISI*matrixAmISI');
-PICI2 = diag(matrixAmICI2*matrixAmICI2');
+PICI1 = alpha*diag(matrixA0ICI1*matrixA0ICI1');
+PISI = (1-alpha)*diag(matrixAmISI*matrixAmISI');
+PICI2 = (1-alpha)*diag(matrixAmICI2*matrixAmICI2');
 
 interferencePower = sum(PICI1 + PISI + PICI2);
 end

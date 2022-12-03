@@ -16,7 +16,7 @@ fprintf('Starting main_interference_calculation.m ... \n\n')
 
 global folderName settingsFileName channelsFilePath
 folderName = 'optimized_windows';
-if ~isdir(folderName)
+if ~isdir(folderName)  %#ok
     error('Missing %s folder.', folderName)
 end
 settingsFileName = 'settingsData.mat';
@@ -29,7 +29,7 @@ channelsFilePath = './channels/vehA200channel2.mat';
 % end
 
 folderToSave = 'interference_results';
-if ~isdir(folderToSave)
+if ~isdir(folderToSave)  %#ok
     mkdir(folderToSave)
 end
 typeOFDMSet = {'wtx', 'wrx', 'WOLA', 'CPW', 'CPwrx', 'CPwtx'};

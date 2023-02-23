@@ -146,11 +146,41 @@ switch typeOFDM
             surf(cyclicPrefixVector, snrVector, ...
                 10*log10(optWindowResults(:, :, setIndex).'), ...
                 'LineWidth', .1, 'EdgeAlpha', .91)
+            set(ax1, 'Ydir', 'reverse')
+            set(ax1, 'Xdir', 'reverse')
+            set(ax1, 'FontSize', fontSize)
+            set(ax1, 'TickLabelInterpreter', 'latex')
+            set(ax1, 'linewidth', 1)
+            ylim([-30 50])
+            xLabelAx1 = xlabel('CP Length', 'interpreter', 'latex', ...
+                'FontSize', fontSize, 'Color', 'k');
+            xLabelAx1.Units = 'centimeters';
+            xLabelAx1.Position(1) = xLabelAx1.Position(1) - .6;
+            xLabelAx1.Position(2) = xLabelAx1.Position(2) - .1;
+            xLabelAx1.Rotation = 22.5;
+            yLabelAx1 = ylabel('SNR, dB', 'interpreter', 'latex', ...
+                'FontSize', fontSize, 'Color', 'k');
+            yLabelAx1.Units = 'centimeters';
+            yLabelAx1.Position(1) = yLabelAx1.Position(1) + .5;
+            yLabelAx1.Position(2) = yLabelAx1.Position(2) - .1;
+            yLabelAx1.Rotation = -37.5;
+            zlabel('BER, dB', 'interpreter', 'latex', 'FontSize', ...
+                fontSize, 'Color', 'k')
+            title('(a)', 'interpreter', 'latex', 'FontSize', fontSize, ...
+                'Color', 'k')
 
             subplot(ax2)
             surf(cyclicPrefixVector, snrVector, ...
                 10*log10(rcWindowResults.'), 'LineWidth', .1, ...
                 'EdgeAlpha', .91)
+            set(ax2, 'Ydir', 'reverse')
+            set(ax2, 'Xdir', 'reverse')
+            set(ax2, 'FontSize', fontSize)
+            set(ax2, 'TickLabelInterpreter', 'latex')
+            set(ax2, 'linewidth', 1)
+            ylim([-30 50])
+            title('(b)', 'interpreter', 'latex', 'FontSize', fontSize, ...
+            'Color', 'k')
             
             fileName = strcat('ber_surface_', typeOFDM, '_', ...
                 caseSet{setIndex});

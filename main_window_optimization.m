@@ -227,6 +227,7 @@ options.Display = 'iter-detailed';
 options.MaxIterations = 1000;
 options.MaxFunctionEvaluations = 6000;
 options.UseParallel = true;
+maxTries = 5;
 switch typeOFDM
     case {'wtx', 'CPwtx'}
         objectiveFunction = objective_function_tx(windowRxRC, numSubcar, ...
@@ -242,7 +243,7 @@ switch typeOFDM
             ones(tailTx, 1)];
         tryCount = 0;
         exitFlag = 0;
-        while tryCount < 5
+        while tryCount < maxTries
             tryCount = tryCount + 1;
             if exitFlag == 0
                 [windowVector, ~, exitFlag] = fmincon(objectiveFunction, initialValue, ...
@@ -271,7 +272,7 @@ switch typeOFDM
             ones(numSubcar-tailRx, 1); ones(tailRx, 1)];
         tryCount = 0;
         exitFlag = 0;
-        while tryCount < 5
+        while tryCount < maxTries
             tryCount = tryCount + 1;
             if exitFlag == 0
                 [windowVector, ~, exitFlag] = fmincon(objectiveFunction, ...
@@ -308,12 +309,12 @@ switch typeOFDM
         initialValue = diag(windowTxRC);
         tryCount = 0;
         exitFlag = 0;
-        while tryCount < 5
+        while tryCount < maxTries
             tryCount = tryCount + 1;
             if exitFlag == 0
-                windowVectorAStep1 = fmincon(objectiveFunctionCaseAStep1, ...
-                    initialValue, [], [], [], [], lowerBoundsTx, ...
-                    upperBoundsTx, [], options);
+                [windowVectorAStep1, ~, exitFlag] = fmincon(...
+                    objectiveFunctionCaseAStep1, initialValue, [], [], ...
+                    [], [], lowerBoundsTx, upperBoundsTx, [], options);
                 initialValue = windowVectorAStep1;
             end
         end
@@ -326,12 +327,12 @@ switch typeOFDM
         initialValue = diag(windowRxRC);
         tryCount = 0;
         exitFlag = 0;
-        while tryCount < 5
+        while tryCount < maxTries
             tryCount = tryCount + 1;
             if exitFlag == 0
-                windowVectorAStep2 = fmincon(objectiveFunctionCaseAStep2, ...
-                    initialValue, [], [], [], [], lowerBoundsRx, ...
-                    upperBoundsRx, [], options);
+                [windowVectorAStep2, ~, exitFlag] = fmincon(...
+                    objectiveFunctionCaseAStep2, initialValue, [], [], ...
+                    [], [], lowerBoundsRx, upperBoundsRx, [], options);
                 initialValue = windowVectorAStep2;
             end
         end
@@ -344,13 +345,13 @@ switch typeOFDM
         initialValue = windowVectorAStep1;
         tryCount = 0;
         exitFlag = 0;
-        while tryCount < 5
+        while tryCount < maxTries
             tryCount = tryCount + 1;
             if exitFlag == 0
-                windowVectorAStep3 = fmincon(objectiveFunctionCaseAStep3, ...
-                    initialValue, [], [], [], [], lowerBoundsTx, ...
-                    upperBoundsTx, [], options);
-                initalValue = windowVectorAStep3;
+                [windowVectorAStep3, ~, exitFlag] = fmincon(...
+                    objectiveFunctionCaseAStep3, initialValue, [], [], ...
+                    [], [], lowerBoundsTx, upperBoundsTx, [], options);
+                initialValue = windowVectorAStep3;
             end
         end
         optimizedWindowCaseAStep3 = diag(windowVectorAStep3);
@@ -362,12 +363,12 @@ switch typeOFDM
         initialValue = diag(windowRxRC);
         tryCount = 0;
         exitFlag = 0;
-        while tryCount < 5
+        while tryCount < maxTries
             tryCount = tryCount + 1;
             if exitFlag == 0
-                windowVectorBStep1 = fmincon(objectiveFunctionCaseBStep1, ...
-                    initialValue, [], [], [], [], lowerBoundsRx, ...
-                    upperBoundsRx, [], options);
+                [windowVectorBStep1, ~, exitFlag] = fmincon(...
+                    objectiveFunctionCaseBStep1, initialValue, [], [], ...
+                    [], [], lowerBoundsRx, upperBoundsRx, [], options);
                 initialValue = windowVectorBStep1;
             end
         end
@@ -380,12 +381,12 @@ switch typeOFDM
         initialValue = diag(windowTxRC);
         tryCount = 0;
         exitFlag = 0;
-        while tryCount < 5
+        while tryCount < maxTries
             tryCount = tryCount + 1;
             if exitFlag == 0
-                windowVectorBStep2 = fmincon(objectiveFunctionCaseBStep2, ...
-                    initialValue, [], [], [], [], lowerBoundsTx, ...
-                    upperBoundsTx, [], options);
+                [windowVectorBStep2, ~, exitFlag] = fmincon(...
+                    objectiveFunctionCaseBStep2, initialValue, [], [], ...
+                    [], [], lowerBoundsTx, upperBoundsTx, [], options);
                 initialValue = windowVectorBStep2;
             end
         end
@@ -398,12 +399,12 @@ switch typeOFDM
         initialValue = windowVectorBStep1;
         tryCount = 0;
         exitFlag = 0;
-        while tryCount < 5
+        while tryCount < maxTries
             tryCount = tryCount + 1;
             if exitFlag == 0
-                windowVectorBStep3 = fmincon(objectiveFunctionCaseBStep3, ...
-                    initialValue, [], [], [], [], lowerBoundsRx, ...
-                    upperBoundsRx, [], options);
+                [windowVectorBStep3, ~, exitFlag] = fmincon(...
+                    objectiveFunctionCaseBStep3, initialValue, [], [], ...
+                    [], [], lowerBoundsRx, upperBoundsRx, [], options);
                 initialValue = windowVectorBStep3;
             end
         end

@@ -13,7 +13,8 @@ fprintf('Starting main_BER_figures.m ... \n\n')
 fprintf('This script generates figures from the BER calculation.\n')
 
 % Definitions
-global settingsFileName resultsFolder figuresSurface
+global settingsFileName resultsFolder figuresSurface listSystems ...
+    figuresByCPFolder
 settingsFileName = 'settingsData.mat';
 resultsFolder = 'ber_results';
 figuresFolder = [resultsFolder '/figures'];
@@ -29,18 +30,21 @@ if ~isfolder(figuresSurface)
     mkdir(figuresSurface)
 end
 resultFiles = dir(fullfile(resultsFolder));
-typeOFDMSet = {'wtx' 'wrx' 'WOLA' 'CPW' 'CPwtx' 'CPwrx'};
+listSystems = {'wtx' 'wrx' 'CPwtx' 'CPwrx' 'WOLA' 'CPW'};
 settingsLoader = load(settingsFileName);
 cpLengthVector = settingsLoader.settingsData.generalSettings.cyclicPrefix;
 snrValues = settingsLoader.settingsData.generalSettings.snrValues;
 
-for typeOFDMIndex = 1:length(typeOFDMSet)
-    typeOFDM = typeOFDMSet{typeOFDMIndex};
+% Plot all surfaces
+for typeOFDMIndex = 1:length(listSystems)
+    typeOFDM = listSystems{typeOFDMIndex};
     [rcWindowResults, optWindowResults] = read_results(resultFiles, ...
         typeOFDM);
     plot_ber_surf(rcWindowResults, optWindowResults, typeOFDM)
 end
-
+close all
+% Plot cut
+plot_ber_cut_cp(22)
 
 function plot_ber_surf(rcWindowResults, optWindowResults, typeOFDM)
 
@@ -191,8 +195,7 @@ end
 end
 
 
-function plot_ber_cut_cp(rcWindowResults, optWindowResults, cpLength, ...
-    typeOFDM, folderPath)
+function plot_ber_cut_cp(cpLength)
 % Funtion to plot different systems for a single CP length.
 %
 % - Input
@@ -201,26 +204,143 @@ function plot_ber_cut_cp(rcWindowResults, optWindowResults, cpLength, ...
 %   . cpLength: Number of samples in cyclic prefix
 %   . folderPath: Folder to save figure
 
-global settingsFileName
+global settingsFileName listSystems figuresByCPFolder resultsFolder
+
 settingsLoader = load(settingsFileName);
 snrValues = settingsLoader.settingsData.generalSettings.snrValues;
-width = 8.99;
+resultFiles = dir(fullfile(resultsFolder));
+selectedResults = zeros(length(listSystems), length(snrValues), 2);
+
+for idx = 1:length(resultFiles)
+    if resultFiles(idx).isdir
+        continue
+    end
+    fileNameInfo = split(resultFiles(idx).name, '_');
+    typeOFDM = fileNameInfo{3};
+    typeIndex = find(strcmp(listSystems, typeOFDM));
+    switch typeOFDM
+        case {'wtx', 'wrx', 'CPwrx', 'CPwtx'}
+            if isequal(fileNameInfo{end}(1:2), num2str(cpLength))
+                if isequal(fileNameInfo{1}, 'rc')
+                    selectedResults(typeIndex, :, 2) = load(strcat(...
+                        resultFiles(idx).folder, '/', ...
+                        resultFiles(idx).name)).berRCSNR;
+                else
+                    selectedResults(typeIndex, :, 1) = load(strcat(...
+                        resultFiles(idx).folder, '/', ...
+                        resultFiles(idx).name)).berSNR;
+                end
+            end
+        case {'WOLA', 'CPW'}
+            if isequal(fileNameInfo{end}(1:2), num2str(cpLength))
+                if isequal(fileNameInfo{1}, 'rc')
+                    selectedResults(typeIndex, :, 2) = load(strcat(...
+                        resultFiles(idx).folder, '/', ...
+                        resultFiles(idx).name)).berRCSNR;
+                else
+                    selectedResults(typeIndex, :, 1) = load(strcat(...
+                        resultFiles(idx).folder, '/', ...
+                        resultFiles(idx).name)).berSNRStep3B;
+                end
+            end
+        otherwise
+            fprintf('No such implementation...\n')
+    end
+end
+
+% Figure settings
+width = 22;
 height = 2*width / (1+sqrt(5));
-fontSize = 11;
+fontSize = 14;
+lineWidth = 1.5;
+markerSize = 13;
 horizontalLeftDistance = 2.5;
-verticalBottomDistance = 3;
+verticalBottomDistance = 2;
 plotWidth = width - 1.5*horizontalLeftDistance;
 plotHeight = height - 1.5*verticalBottomDistance;
 
 fig = figure;
-fig.Name = strcat('BER for ', num2str(cyclicPrefix), ' CP');
+fig.Name = strcat('BER for ', num2str(cpLength), ' CP');
 fig.Units = 'centimeters';
 fig.Color = 'w';
-fig.Position = [2 2 width height];
+fig.Position = [10 10 width height];
 ax1 = axes('units', 'centimeters', 'position', [horizontalLeftDistance, ...
     verticalBottomDistance, plotWidth, plotHeight]);
 subplot(ax1)
+indexedLineStyle = {'d-', 's-', 'o-', '*-', '+-', 'x-'};
+for idx = 1:length(listSystems)
+    semilogy(snrValues, selectedResults(idx, :, 1), ...
+        indexedLineStyle{idx}, 'LineWidth', lineWidth, 'MarkerSize', ...
+        markerSize)
+    if idx == 1
+        hold on
+    end
+end
+ax1.ColorOrderIndex = 1;
+for idx = 1:length(listSystems)
+    semilogy(snrValues, selectedResults(idx, :, 2), ...
+        strcat(indexedLineStyle{idx}, '-'), 'LineWidth', lineWidth, ...
+        'MarkerSize', markerSize)
+end
+% Create zoom box
+topLeft = [40 .5*1e-3];
+bottomRight = [50 .5^2*1e-4];
+draw_box(topLeft, bottomRight, lineWidth)
+hold off, grid on
+set(ax1, 'FontSize', fontSize)
+set(ax1, 'TickLabelInterpreter', 'latex')
+set(ax1, 'linewidth', lineWidth)
+set(ax1, 'XColor', 'k')
+set(ax1, 'YColor', 'k')
+xlabel('SNR, dB', 'interpreter', 'latex', 'FontSize', fontSize)
+ylabel('BER', 'interpreter', 'latex', 'FontSize', fontSize)
+lgd = legend(listSystems);
+lgd.Units = 'centimeters';
+lgd.Interpreter = 'latex';
+lgd.FontSize = fontSize;
+lgd.Position(1) = horizontalLeftDistance + .25;
+lgd.Position(2) = verticalBottomDistance + .25;
+lgd.NumColumns = 1;
 
+% Zoom plot definitions:
+lineWidthZoom = 1.5;
+fontSizeZoom = 14;
+plotWidthZoom = plotWidth/3;
+plotHeightZoom = plotHeight/3;
+horizontalLeftDistanceZoom = horizontalLeftDistance + plotWidth/2 ...
+    - plotWidthZoom/2;
+verticalBottomDistanceZoom = verticalBottomDistance + 1;
+ax2 = axes('units', 'centimeters', 'position', ...
+    [horizontalLeftDistanceZoom, verticalBottomDistanceZoom, ...
+    plotWidthZoom, plotHeightZoom]);
+subplot(ax2)
+indexedLineStyle = {'d-', 's-', 'o-', '*-', '+-', 'x-'};
+for idx = 1:length(listSystems)
+    semilogy(snrValues, selectedResults(idx, :, 1), ...
+        indexedLineStyle{idx}, 'LineWidth', lineWidthZoom, ...
+        'MarkerSize', markerSize)
+    if idx == 1
+        hold on
+    end
+end
+ax2.ColorOrderIndex = 1;
+for idx = 1:length(listSystems)
+    semilogy(snrValues, selectedResults(idx, :, 2), ...
+        strcat(indexedLineStyle{idx}, '-'), 'LineWidth', lineWidthZoom, ...
+        'MarkerSize', markerSize)
+end
+hold off, grid on
+xlim([topLeft(1) bottomRight(1)])
+ylim([bottomRight(2) topLeft(2)])
+set(ax2, 'FontSize', fontSizeZoom)
+set(ax2, 'TickLabelInterpreter', 'latex')
+set(ax2, 'linewidth', lineWidthZoom)
+set(ax2, 'XColor', 'k')
+set(ax2, 'YColor', 'k')
+
+fileName = strcat('ber_cut_', num2str(cpLength), '_CP.eps');
+filePath = [figuresByCPFolder '/' fileName];
+saveas(fig, filePath, 'epsc')
 end
 
 
@@ -290,31 +410,25 @@ for fileIndex = 1:length(resultFiles)
 end
 end
 
+function draw_box(top_left, bottom_right, line_width)
 
-function filesByCP = file_by_cp(resultFiles, cyclicPrefixLength)
-filesByCP = {};
-for fileIndex = 1:length(resultFiles)
-    if resultFiles(fileIndex).isdir
-        continue
-    end
-    fileNameInfo = split(resultFiles(fileIndex).name, '_');
-    cpLength = fileNameInfo{end}(1:end-6);
-    if isequal(cpLength, cyclicPrefixLength)
-        filesByCP(end+1) = {resultFiles(fileIndex).name};  %#ok
-    end
-end
-end
+top = top_left(2);
+left = top_left(1);
+bottom = bottom_right(2);
+right = bottom_right(1);
 
 
-function cpList = list_cp(filesByType)
-cpList = zeros(length(filesByType), 1);
-for fileIndex = 1:length(filesByType)
-    fileName = filesByType(fileIndex);
-    fileNameInfo = split(fileName, '_');
-    cpLength = str2double(fileNameInfo{end}(1:end-6));
-    cpList(fileIndex) = cpLength;
+plot([left right], [top top], 'k', 'linewidth', line_width,...
+    'Handlevisibility', 'off'), hold on
+plot([right right], [top bottom], 'k', 'linewidth', line_width,...
+    'HandleVisibility', 'off')
+plot([left right], [bottom bottom], 'k', 'linewidth', line_width,...
+    'HandleVisibility', 'off')
+plot([left left], [bottom top], 'k', 'linewidth', line_width,...
+    'HandleVisibility', 'off')
 end
-end
+
+
 
 
 % EoF

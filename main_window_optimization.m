@@ -217,7 +217,8 @@ load('./channels/vehA200channel2.mat', 'vehA200channel2')
 averageChannel = mean(vehA200channel2, 1);
 interferenceArray = array_ici_isi(averageChannel, numSubcar, ...
     cpLength, csLength, tailTx, tailRx, prefixRemovalLength);
-intercarrierInterference = interferenceArray(:, :, 1);
+intercarrierInterference = interferenceArray(:, :, 1) ...
+    - diag(diag(interferenceArray(:, :, 1)));
 intersymbolInterference = sum(interferenceArray(:, :, 2:end), 3);
 windowTxRC = transmitter_rc_window(numSubcar, cpLength, csLength, tailTx);
 windowRxRC = receiver_rc_window(numSubcar, tailRx);
@@ -275,7 +276,8 @@ switch typeOFDM
             tryCount = tryCount + 1;
             if exitFlag == 0
                 [windowVector, ~, exitFlag] = fmincon(objectiveFunction, ...
-                    initialValue, [], [], [], [], lowerBounds, upperBounds, [], options);
+                    initialValue, [], [], [], [], lowerBounds, ...
+                    upperBounds, [], options);
                 initialValue = windowVector;
             end
         end
@@ -311,7 +313,8 @@ switch typeOFDM
             tryCount = tryCount + 1;
             if exitFlag == 0
                 windowVectorAStep1 = fmincon(objectiveFunctionCaseAStep1, ...
-                    initialValue, [], [], [], [], lowerBoundsTx, upperBoundsTx, [], options);
+                    initialValue, [], [], [], [], lowerBoundsTx, ...
+                    upperBoundsTx, [], options);
                 initialValue = windowVectorAStep1;
             end
         end
@@ -328,7 +331,8 @@ switch typeOFDM
             tryCount = tryCount + 1;
             if exitFlag == 0
                 windowVectorAStep2 = fmincon(objectiveFunctionCaseAStep2, ...
-                    initialValue, [], [], [], [], lowerBoundsRx, upperBoundsRx, [], options);
+                    initialValue, [], [], [], [], lowerBoundsRx, ...
+                    upperBoundsRx, [], options);
                 initialValue = windowVectorAStep2;
             end
         end
@@ -345,7 +349,8 @@ switch typeOFDM
             tryCount = tryCount + 1;
             if exitFlag == 0
                 windowVectorAStep3 = fmincon(objectiveFunctionCaseAStep3, ...
-                    initialValue, [], [], [], [], lowerBoundsTx, upperBoundsTx, [], options);
+                    initialValue, [], [], [], [], lowerBoundsTx, ...
+                    upperBoundsTx, [], options);
                 initalValue = windowVectorAStep3;
             end
         end
@@ -362,7 +367,8 @@ switch typeOFDM
             tryCount = tryCount + 1;
             if exitFlag == 0
                 windowVectorBStep1 = fmincon(objectiveFunctionCaseBStep1, ...
-                    initialValue, [], [], [], [], lowerBoundsRx, upperBoundsRx, [], options);
+                    initialValue, [], [], [], [], lowerBoundsRx, ...
+                    upperBoundsRx, [], options);
                 initialValue = windowVectorBStep1;
             end
         end
@@ -379,7 +385,8 @@ switch typeOFDM
             tryCount = tryCount + 1;
             if exitFlag == 0
                 windowVectorBStep2 = fmincon(objectiveFunctionCaseBStep2, ...
-                    initialValue, [], [], [], [], lowerBoundsTx, upperBoundsTx, [], options);
+                    initialValue, [], [], [], [], lowerBoundsTx, ...
+                    upperBoundsTx, [], options);
                 initialValue = windowVectorBStep2;
             end
         end
@@ -396,7 +403,8 @@ switch typeOFDM
             tryCount = tryCount + 1;
             if exitFlag == 0
                 windowVectorBStep3 = fmincon(objectiveFunctionCaseBStep3, ...
-                    initialValue, [], [], [], [], lowerBoundsRx, upperBoundsRx, [], options);
+                    initialValue, [], [], [], [], lowerBoundsRx, ...
+                    upperBoundsRx, [], options);
                 initialValue = windowVectorBStep3;
             end
         end

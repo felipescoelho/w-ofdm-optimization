@@ -217,8 +217,7 @@ load('./channels/vehA200channel2.mat', 'vehA200channel2')
 averageChannel = mean(vehA200channel2, 1);
 interferenceArray = array_ici_isi(averageChannel, numSubcar, ...
     cpLength, csLength, tailTx, tailRx, prefixRemovalLength);
-intercarrierInterference = interferenceArray(:, :, 1) ...
-    - diag(diag(interferenceArray(:, :, 1)));
+intercarrierInterference = interferenceArray(:, :, 1);
 intersymbolInterference = sum(interferenceArray(:, :, 2:end), 3);
 windowTxRC = transmitter_rc_window(numSubcar, cpLength, csLength, tailTx);
 windowRxRC = receiver_rc_window(numSubcar, tailRx);

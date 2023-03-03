@@ -11,11 +11,17 @@ clc
 clear
 close all
 
+% Logger
+loggingFolder = 'logs';
+if ~isdir(loggingFolder)  %#ok
+    mkdir(loggingFolder)
+end
+logFilePath = strcat(tempname(loggingFolder), '.log');
+diary(logFilePath)
 
 fprintf('Starting main_window_optimization.m ... \n\n')
 fprintf('This script runs the optimization process for the windows\n')
 fprintf('in the different w-OFDM systems.\n\n')
-
 
 global folderName
 
@@ -193,6 +199,8 @@ for fieldIndex = 1:length(fields)
     end
 end
 
+% Stop logger
+diary off
 
 function optimize_window(typeOFDM, cpLength, csLength, numSubcar, ...
     tailTx, tailRx, prefixRemovalLength, circularShiftLength, alpha)
@@ -227,7 +235,7 @@ options.Display = 'off';
 options.MaxIterations = 1000;
 options.MaxFunctionEvaluations = 6000;
 options.UseParallel = false;
-maxTries = 5;
+maxTries = 8;
 switch typeOFDM
     case {'wtx', 'CPwtx'}
         objectiveFunction = objective_function_tx(windowRxRC, numSubcar, ...
@@ -235,6 +243,10 @@ switch typeOFDM
             csLength, intercarrierInterference, intersymbolInterference, ...
             alpha);
         initialValue = diag(windowTxRC);
+        Aeq = [zeros(numSubcar+cpLength+csLength-2*tailTx, tailTx), ...
+            eye(numSubcar+cpLength+csLength-2*tailTx), ...
+            zeros(numSubcar+cpLength+csLength-2*tailTx, tailTx)];
+        beq = ones(numSubcar+cpLength+csLength-2*tailTx, 1);
         lowerBounds = [zeros(tailTx, 1); ...
             ones(numSubcar+cpLength+csLength-2*tailTx, 1); ...
             zeros(tailTx, 1)];
@@ -246,10 +258,18 @@ switch typeOFDM
         while tryCount < maxTries
             tryCount = tryCount + 1;
             if exitFlag == 0
-                [windowVector, ~, exitFlag] = fmincon(objectiveFunction, initialValue, ...
-                    [], [], [], [], lowerBounds, upperBounds, [], options);
+                [windowVector, ~, exitFlag] = fmincon(...
+                    objectiveFunction, initialValue, [], [], Aeq, beq, ...
+                    lowerBounds, upperBounds, [], options);
                 initialValue = windowVector;
             end
+        end
+        if exitFlag == 0
+            fprintf('Failure in optimization for %s with %u CP.\n', ...
+                typeOFDM, cpLength)
+        else
+            fprintf('Success in optimization for %s with %u CP.\n', ...
+                typeOFDM, cpLength)
         end
         optimizedWindow = diag(windowVector);
         fprintf('Finished optimization process\n')
@@ -266,6 +286,8 @@ switch typeOFDM
             prefixRemovalLength, intercarrierInterference, ...
             intersymbolInterference, alpha);
         initialValue = diag(windowRxRC);
+        Aeq = [eye(tailRx), zeros(tailRx, numSubcar-tailRx), eye(tailRx)];
+        beq = ones(tailRx, 1);
         lowerBounds = [zeros(tailRx, 1); ...
             ones(numSubcar-tailRx, 1); zeros(tailRx, 1)];
         upperBounds = [ones(tailRx, 1); ...
@@ -276,10 +298,17 @@ switch typeOFDM
             tryCount = tryCount + 1;
             if exitFlag == 0
                 [windowVector, ~, exitFlag] = fmincon(objectiveFunction, ...
-                    initialValue, [], [], [], [], lowerBounds, ...
+                    initialValue, [], [], Aeq, beq, lowerBounds, ...
                     upperBounds, [], options);
                 initialValue = windowVector;
             end
+        end
+        if exitFlag == 0
+            fprintf('Failure in optimization for %s with %u CP.\n', ...
+                typeOFDM, cpLength)
+        else
+            fprintf('Success in optimization for %s with %u CP.\n', ...
+                typeOFDM, cpLength)
         end
         optimizedWindow = diag(windowVector);
         fprintf('Finished optimization process\n')
@@ -297,6 +326,8 @@ switch typeOFDM
         upperBoundsTx = [ones(tailTx, 1); ...
             ones(numSubcar+cpLength+csLength-2*tailTx, 1); ...
             ones(tailTx, 1)];
+        Aeq = [eye(tailRx), zeros(tailRx, numSubcar-tailRx), eye(tailRx)];
+        beq = ones(tailRx, 1);
         lowerBoundsRx = [zeros(tailRx, 1); ...
             ones(numSubcar-tailRx, 1); zeros(tailRx, 1)];
         upperBoundsRx = [ones(tailRx, 1); ...
@@ -318,6 +349,13 @@ switch typeOFDM
                 initialValue = windowVectorAStep1;
             end
         end
+        if exitFlag == 0
+            fprintf('Failure in optimization for %s case A - step 1 with %u CP.\n', ...
+                typeOFDM, cpLength)
+        else
+            fprintf('Success in optimization for %s case A - step 1 with %u CP.\n', ...
+                typeOFDM, cpLength)
+        end
         optimizedWindowCaseAStep1 = diag(windowVectorAStep1);
         
         objectiveFunctionCaseAStep2 = objective_function_rx(windowTxRC, ...
@@ -332,9 +370,16 @@ switch typeOFDM
             if exitFlag == 0
                 [windowVectorAStep2, ~, exitFlag] = fmincon(...
                     objectiveFunctionCaseAStep2, initialValue, [], [], ...
-                    [], [], lowerBoundsRx, upperBoundsRx, [], options);
+                    Aeq, beq, lowerBoundsRx, upperBoundsRx, [], options);
                 initialValue = windowVectorAStep2;
             end
+        end
+        if exitFlag == 0
+            fprintf('Failure in optimization for %s case A step 2 with %u CP.\n', ...
+                typeOFDM, cpLength)
+        else
+            fprintf('Success in optimization for %s case A step 2 with %u CP.\n', ...
+                typeOFDM, cpLength)
         end
         optimizedWindowCaseAStep2 = diag(windowVectorAStep2);
         
@@ -354,6 +399,13 @@ switch typeOFDM
                 initialValue = windowVectorAStep3;
             end
         end
+        if exitFlag == 0
+            fprintf('Failure in optimization for %s case A step 3 with %u CP.\n', ...
+                typeOFDM, cpLength)
+        else
+            fprintf('Success in optimization for %s case A step 3 with %u CP.\n', ...
+                typeOFDM, cpLength)
+        end
         optimizedWindowCaseAStep3 = diag(windowVectorAStep3);
         
         objectiveFunctionCaseBStep1 = objective_function_rx(windowTxRC, ...
@@ -368,9 +420,16 @@ switch typeOFDM
             if exitFlag == 0
                 [windowVectorBStep1, ~, exitFlag] = fmincon(...
                     objectiveFunctionCaseBStep1, initialValue, [], [], ...
-                    [], [], lowerBoundsRx, upperBoundsRx, [], options);
+                    Aeq, beq, lowerBoundsRx, upperBoundsRx, [], options);
                 initialValue = windowVectorBStep1;
             end
+        end
+        if exitFlag == 0
+            fprintf('Failure in optimization for %s case B step 1 with %u CP.\n', ...
+                typeOFDM, cpLength)
+        else
+            fprintf('Success in optimization for %s case B step 1 with %u CP.\n', ...
+                typeOFDM, cpLength)
         end
         optimizedWindowCaseBStep1 = diag(windowVectorBStep1);
         
@@ -390,6 +449,13 @@ switch typeOFDM
                 initialValue = windowVectorBStep2;
             end
         end
+        if exitFlag == 0
+            fprintf('Failure in optimization for %s case B step 2 with %u CP.\n', ...
+                typeOFDM, cpLength)
+        else
+            fprintf('Success in optimization for %s case B step 2 with %u CP.\n', ...
+                typeOFDM, cpLength)
+        end
         optimizedWindowCaseBStep2 = diag(windowVectorBStep2);
         
         objectiveFunctionCaseBStep3 = objective_function_rx(windowTxRC, ...
@@ -404,9 +470,16 @@ switch typeOFDM
             if exitFlag == 0
                 [windowVectorBStep3, ~, exitFlag] = fmincon(...
                     objectiveFunctionCaseBStep3, initialValue, [], [], ...
-                    [], [], lowerBoundsRx, upperBoundsRx, [], options);
+                    Aeq, beq, lowerBoundsRx, upperBoundsRx, [], options);
                 initialValue = windowVectorBStep3;
             end
+        end
+        if exitFlag == 0
+            fprintf('Failure in optimization for %s case B step 3 with %u CP.\n', ...
+                typeOFDM, cpLength)
+        else
+            fprintf('Success in optimization for %s case B step 3 with %u CP.\n', ...
+                typeOFDM, cpLength)
         end
         optimizedWindowCaseBStep3 = diag(windowVectorBStep3);
         

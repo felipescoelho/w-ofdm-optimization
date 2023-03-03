@@ -48,7 +48,7 @@ fields = fieldnames(settingsData);
 clear settingsData
 
 
-alpha = .99;
+alpha = .5;
 for fieldIndex = 1:length(fields)
     fieldName = fields{fieldIndex};
     dataLoader = load(settingsFileName);
@@ -223,10 +223,10 @@ windowTxRC = transmitter_rc_window(numSubcar, cpLength, csLength, tailTx);
 windowRxRC = receiver_rc_window(numSubcar, tailRx);
 options = optimoptions(@fmincon);
 options.Algorithm = 'sqp';
-options.Display = 'iter-detailed';
+options.Display = 'off';
 options.MaxIterations = 1000;
 options.MaxFunctionEvaluations = 6000;
-options.UseParallel = true;
+options.UseParallel = false;
 maxTries = 5;
 switch typeOFDM
     case {'wtx', 'CPwtx'}

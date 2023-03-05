@@ -202,7 +202,7 @@ parfor fileIndex = 1:length(windowFiles)
 end
 
 
-function save_opt_to_file(berSNR, fileName)
+function save_opt_to_file(fileName, berSNR)
 % Function to save optimized window's BER resutls in file.
 %
 
@@ -210,15 +210,15 @@ save(fileName, 'berSNR')
 end
 
 
-function save_rc_to_file(berRCSNR, fileName)
+function save_rc_to_file(fileName, berRCSNR)
 % Function to save RC window BER resutls in file.
 
 save(fileName, 'berRCSNR')
 end
 
 
-function save_multiple_to_file(berSNRStep1A, berSNRStep1B, ...
-    berSNRStep2A, berSNRStep2B, berSNRStep3A, berSNRStep3B, fileName)
+function save_multiple_to_file(fileName, berSNRStep1A, berSNRStep1B, ...
+    berSNRStep2A, berSNRStep2B, berSNRStep3A, berSNRStep3B)
 % Function to save multiple optimized windows, for WOLA and CPW.
 %
 

@@ -23,9 +23,8 @@ optimizedWindowsFolder = 'optimized_windows';
 channelsFilePath = './channels/vehA200channel2.mat';
 windowFiles = dir(fullfile(optimizedWindowsFolder));
 berResultsFolder = 'ber_results';
-dataLoader = load(settingsFileName);
 snrValues = dataLoader.settingsData.generalSettings.snrValues;
-if ~isfolder(berResultsFolder)
+if ~isdir(berResultsFolder)  %#ok
     mkdir(berResultsFolder)
 end
 
@@ -42,7 +41,8 @@ parfor fileIndex = 1:length(windowFiles)
         typeOFDM)
     windowLoader = load([optimizedWindowsFolder '/' ...
         windowFiles(fileIndex).name]);
-    vehA200channel2 = load(channelsFilePath).vehA200channel2;
+    channelLoader = load(channelsFilePath);
+    vehA200channel2 = channelLoader.vehA200channel2;
     dataLoader = load(settingsFileName);
     numSubcar = dataLoader.settingsData.generalSettings.numberSubcarriers;
     bitsPerSubcar = dataLoader.settingsData.generalSettings.bitsPerSubcarrier;

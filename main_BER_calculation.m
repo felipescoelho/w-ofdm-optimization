@@ -31,6 +31,11 @@ end
 parfor fileIndex = 1:length(windowFiles)
     if windowFiles(fileIndex).isdir
         continue
+    else
+        dummy = split(windowFiles(fileIndex).name, '.')
+        if strcmp(dummy{end},'log')
+            continue
+        end
     end
     fprintf('Working on file %s.\n', windowFiles(fileIndex).name)
     windowInfo = split(windowFiles(fileIndex).name, '_');
@@ -43,6 +48,7 @@ parfor fileIndex = 1:length(windowFiles)
     channelLoader = load(channelsFilePath);
     vehA200channel2 = channelLoader.vehA200channel2;
     dataLoader = load(settingsFileName);
+    snrValues = dataLoader.settingsData.generalSettings.snrValues;
     numSubcar = dataLoader.settingsData.generalSettings.numberSubcarriers;
     bitsPerSubcar = dataLoader.settingsData.generalSettings.bitsPerSubcarrier;
     symbolsPerTx = dataLoader.settingsData.generalSettings.symbolsPerTx;

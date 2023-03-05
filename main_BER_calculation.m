@@ -23,7 +23,6 @@ optimizedWindowsFolder = 'optimized_windows';
 channelsFilePath = './channels/vehA200channel2.mat';
 windowFiles = dir(fullfile(optimizedWindowsFolder));
 berResultsFolder = 'ber_results';
-snrValues = dataLoader.settingsData.generalSettings.snrValues;
 if ~isdir(berResultsFolder)  %#ok
     mkdir(berResultsFolder)
 end

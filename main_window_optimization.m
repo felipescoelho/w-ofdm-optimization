@@ -37,8 +37,8 @@ settingsFileName = 'settingsData.mat';
 fprintf('Generating settingsData structure array.\n')
 settingsData = struct();
 settingsData.generalSettings = struct('numberSubcarriers', 256, ...
-    'bitsPerSubcarrier', 4, 'cyclicPrefix', 10:2:32, 'symbolsPerTx', 16, ...
-    'ensemble', 1, 'snrValues', linspace(-20, 50, 30));
+    'bitsPerSubcarrier', 4, 'cyclicPrefix', 10:2:32, 'symbolsPerTx', ...
+    16, 'ensemble', 1, 'snrValues', linspace(-20, 50, 30));
 settingsData.wtx = struct('tailTx', 8, 'tailRx', 0);
 settingsData.wrx = struct('tailTx', 0, 'tailRx', 10);
 settingsData.WOLA = struct('tailTx', 8, 'tailRx', 10);
@@ -350,10 +350,10 @@ switch typeOFDM
             end
         end
         if exitFlag == 0
-            fprintf('Failure in optimization for %s case A - step 1 with %u CP.\n', ...
+            fprintf('Failure in optimization for %s case A step 1 with %u CP.\n', ...
                 typeOFDM, cpLength)
         else
-            fprintf('Success in optimization for %s case A - step 1 with %u CP.\n', ...
+            fprintf('Success in optimization for %s case A step 1 with %u CP.\n', ...
                 typeOFDM, cpLength)
         end
         optimizedWindowCaseAStep1 = diag(windowVectorAStep1);

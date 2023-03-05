@@ -66,7 +66,7 @@ for fileIndex = 1:length(resultFiles)
             continue
     end
 end
-close all
+% close all
 plot_best_cases()
 
 

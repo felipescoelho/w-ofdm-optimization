@@ -86,8 +86,8 @@ parfor fileIndex = 1:length(windowFiles)
                 berRCSNR(snrIndex) = berRC/length(vehA200channel2);
             end
             save_opt_to_file([berResultsFolder '/optimized_' fileName], ...
-                'berSNR')
-            save_rc_to_file([berResultsFolder '/rc_' fileName], 'berRCSNR')
+                berSNR)
+            save_rc_to_file([berResultsFolder '/rc_' fileName], berRCSNR)
         case {'wrx', 'CPwrx'}
             berSNR = zeros(length(snrValues), 1);
             berRCSNR = zeros(length(snrValues), 1);
@@ -113,8 +113,8 @@ parfor fileIndex = 1:length(windowFiles)
                 berRCSNR(snrIndex) = berRC/length(vehA200channel2);
             end
             save_opt_to_file([berResultsFolder '/optimized_' fileName], ...
-                'berSNR')
-            save_rc_to_file([berResultsFolder '/rc_' fileName], 'berRCSNR')
+                berSNR)
+            save_rc_to_file([berResultsFolder '/rc_' fileName], berRCSNR)
         case {'CPW', 'WOLA'}
             berSNRStep1A = zeros(length(snrValues), 1);
             berSNRStep1B = zeros(length(snrValues), 1);
@@ -193,9 +193,9 @@ parfor fileIndex = 1:length(windowFiles)
             end
             save_multiple_to_file(...
                 [berResultsFolder '/optimized_' fileName], ...
-                'berSNRStep1A', 'berSNRStep1B', 'berSNRStep2A', ...
-                'berSNRStep2B', 'berSNRStep3A', 'berSNRStep3B')
-            save_rc_to_file([berResultsFolder '/rc_' fileName], 'berRCSNR')
+                berSNRStep1A, berSNRStep1B, berSNRStep2A, ...
+                berSNRStep2B, berSNRStep3A, berSNRStep3B)
+            save_rc_to_file([berResultsFolder '/rc_' fileName], berRCSNR)
         otherwise
             continue
     end

@@ -18,16 +18,43 @@ assert(isdir(folderName), 'Missing optimized_windows folder:', ...
     'Run main_window_optimization.m.\n')  %#ok
 settingsFileName = 'settingsData.mat';
 settingsLoader = load(settingsFileName);
+numSubcar = settingsLoader.settingsData.generalSettings.numberSubcarriers;
+bitsPerSubcar = settingsLoader.settingsData.generalSettings.bitsPerSubcarrier;
+symbolPerTx = settingsLoader.settingsData.generalSettings.symbolsPerTx;
+ensemble = settingsLoader.settingsData.generalSettings.ensemble;
 typeOFDM = 'wtx';
+cpLength = 22;
 tailTx = settingsLoader.settingsData.(typeOFDM).tailTx;
 switch typeOFDM
     case 'wtx'
         csLength = tailTx;
         prefixRemovealLength = cpLength;
         circularShiftLength = 0;
-    case 'wrx'
+end
+rcWindow = transmitter_rc_window(numSubcar, cpLength, csLength, tailTx);
+
+for idx = 1:ensemble
+    transmittedBits = randi([0 1], numSubcar*bitsPerSubcar/2, 1);
+    transmittedSymbols = qammod(transmittedBits, 2^bitsPerSubcar, ...
+        'InputType', 'bit', 'UnitAveragePower', true);
+    
 end
 
+
+function [maskedwOFDMTx, wOFDMTx] = gen_tx_ofdm(transmittedSymbols, ...
+    windowTx)
+% Function to generate transmitted OFDM symbols
+%
+
+offsetLength = length(transmittedSymbols);
+symbolsInOFDM = [zeros(offsetLength, 1); transmittedSymbols; ...
+    zeros(offsetLength, 1)];
+shiftedIFFT = ifft(ifftshift(symbolsInOFDM));
+OFDMTx = [shiftedIFFT(end-cpLength+1:end); shiftedIFFT; ...
+    shiftedIFFT(1:csLength)];
+wOFDMTx = OFDMTx.*diag(windowTx);
+
+end
 
 
 function windowTxRC = transmitter_rc_window(numSubcar, cpLength, ...

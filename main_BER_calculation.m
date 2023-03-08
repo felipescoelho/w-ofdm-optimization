@@ -28,11 +28,11 @@ if ~isdir(berResultsFolder)  %#ok
 end
 
 
-parfor fileIndex = 1:length(windowFiles)
+for fileIndex = 1:length(windowFiles)
     if windowFiles(fileIndex).isdir
         continue
     else
-        dummy = split(windowFiles(fileIndex).name, '.')
+        dummy = split(windowFiles(fileIndex).name, '.');
         if strcmp(dummy{end},'log')
             continue
         end

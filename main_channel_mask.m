@@ -29,7 +29,7 @@ if ~isdir(resultsPath)  %#ok
     mkdir(resultsPath)
 end
 
-for fileIndex = 1:length(windowFiles)
+parfor fileIndex = 1:length(windowFiles)
     if windowFiles(fileIndex).isdir
         continue
     else
@@ -42,9 +42,6 @@ for fileIndex = 1:length(windowFiles)
     windowInfo = split(windowFiles(fileIndex).name, '_');
     typeOFDM = windowInfo{3};
     cpLength = str2double(windowInfo{end}(1:end-6));
-    if cpLength < 32
-        continue
-    end
     fprintf('%s-OFDM with %d samples in CP.\n', typeOFDM, cpLength)
     windowLoader = load([folderName '/' windowFiles(fileIndex).name]);
     channelLoader = load(channelsFile);
@@ -167,9 +164,6 @@ for fileIndex = 1:length(windowFiles)
             berRCSNR = zeros(length(snrValues), 1);
             berMaskedRCSNR = zeros(length(snrValues), 1);
             for snrIndex = 1:length(snrValues)
-                if snrValues(snrIndex) < 22
-                    continue
-                end
                 berA1 = 0;
                 berMaskedA1 = 0;
                 berA2 = 0;
@@ -291,6 +285,8 @@ end
 
 
 function save_opt(fileName, berSNR)
+% SAVE_OPT  Save BER results for systems using optimal window.
+%   SAVE_OPT(fileName, berSNR)  saves berSNR into fileName.
 
 save(fileName, 'berSNR')
 end
@@ -391,18 +387,39 @@ function [maskedwOFDMTx, wOFDMTx] = gen_tx_ofdm(transmittedSymbols, ...
 symbolsInOFDM = [zeros(symbolsPerTx, offset) transmittedSymbols ...
     zeros(symbolsPerTx, offset)];
 invertTransformMatrix = dftmtx(numSubcar)'/numSubcar;
-OFDMSymbols = invertTransformMatrix*symbolsInOFDM.';
+OFDMSymbols = invertTransformMatrix*ifftshift(symbolsInOFDM.', 1);
 redundancyMatrix = add_redundancy_matrix(numSubcar, cpLength, csLength);
-OFDMSymbolsWithRedundancy = redundancyMatrix*ifftshift(OFDMSymbols, 1);
+OFDMSymbolsWithRedundancy = redundancyMatrix*OFDMSymbols;
 wOFDMTx = (windowTx*OFDMSymbolsWithRedundancy).';
-transformMatrix = dftmtx(numSubcar+cpLength+csLength);
-wOFDMSpectrum = transformMatrix*(wOFDMTx.');
-windowRC = gen_raised_cosine(length(transmittedSymbols), rollOff, ...
-    length(wOFDMSpectrum));
-maskedSpectrum = diag(windowRC)*wOFDMSpectrum;
-invertTransformMatrix = dftmtx(numSubcar+cpLength+csLength)' ...
-    /(numSubcar+cpLength+csLength); 
-maskedwOFDMTx = (invertTransformMatrix*maskedSpectrum).';
+% transformMatrix = dftmtx(numSubcar+cpLength+csLength);
+% wOFDMSpectrum = transformMatrix*(wOFDMTx.');
+% maskedSpectrum = diag(windowRC)*wOFDMSpectrum;
+% invertTransformMatrix = dftmtx(numSubcar+cpLength+csLength)' ...
+%     /(numSubcar+cpLength+csLength); 
+% maskedwOFDMTx = (invertTransformMatrix*maskedSpectrum).';
+maskedwOFDMTx = dft_rc_filt(wOFDMTx, rollOff);
+end
+
+
+function [filteredSignal] = dft_rc_filt(inputSignal, rollOff)
+% DFT_RC_FILT   Filters a signal with an RC window using the DFT.
+%
+
+[numSymbols, signalLength] = size(inputSignal);
+transformMatrix = dftmtx(2*signalLength - 1);
+invertTransformMatrix = dftmtx(2*signalLength - 1);
+inputSignalSpectrum = transformMatrix ...
+    * ([inputSignal zeros(numSymbols, signalLength - 1)].');
+windowRC = gen_raised_cosine(floor(length(inputSignalSpectrum)/2), ...
+    rollOff, length(inputSignalSpectrum));
+maskedSpectrum = diag(ifftshift(windowRC))*inputSignalSpectrum;
+maskedSignal = (invertTransformMatrix*maskedSpectrum).';
+filterTail = [zeros(1, signalLength-1); ...
+    maskedSignal(1:end, signalLength+1:end)];
+
+filteredSignal = [maskedSignal(:, 1:signalLength); zeros(1, signalLength)] ...
+    + [filterTail zeros(numSymbols+1, 1)];
+filteredSignal = filteredSignal(2:end, :);
 end
 
 
@@ -449,18 +466,20 @@ addRedundancyMatrix = [zerosPrefix identityPrefix; identitySubcarriers; ...
 end
 
 
-function [windowRC] = gen_raised_cosine(windowLength, tailLength, ...
+function [windowRC] = gen_raised_cosine(windowLength, rollOff, ...
     totalLength)
 % Function to generate the raised cosine window for the channel mask.
 % This considers a centralized spectrum for the OFDM.
 %
 
-raisedCosineAxis = (-(tailLength+1)/2+1):1:((tailLength+1)/2-1);
-raisedCosine = sin(pi/2*(.5+raisedCosineAxis/tailLength)).^2;
-zeroPadd = zeros(1, floor((totalLength-windowLength-2*tailLength)/2));
-correction = mod(totalLength-windowLength-2*tailLength, 2);
-windowRC = [zeroPadd raisedCosine ones(1, windowLength+correction) ...
-    fliplr(raisedCosine) zeroPadd];
+raisedCosineAxis = (-(rollOff+1)/2+1):1:((rollOff+1)/2-1);
+raisedCosine = sin(pi/2*(.5+raisedCosineAxis/rollOff)).^2;
+
+zeroPaddLeft = zeros(1, floor((totalLength-windowLength-2*rollOff)/2));
+zeroPaddRight = zeros(1, ceil((totalLength-windowLength-2*rollOff)/2));
+
+windowRC = [zeroPaddLeft raisedCosine ones(1, windowLength) ...
+    fliplr(raisedCosine) zeroPaddRight];
 end
 
 
@@ -476,6 +495,7 @@ circularShiftMatrix = circular_shift_matrix(numSubcar, circularShiftLength);
 transformMatrix = dftmtx(numSubcar);
 receivedSymbols = transformMatrix*circularShiftMatrix ...
     * overlapAddMatrix*windowRx*removeRedundancyMatrix*rxSignal;
+receivedSymbols = ifftshift(receivedSymbols, 1);  % Because of how things were done.
 end
 
 

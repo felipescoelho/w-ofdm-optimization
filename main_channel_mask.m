@@ -29,7 +29,7 @@ if ~isdir(resultsPath)  %#ok
     mkdir(resultsPath)
 end
 
-for fileIndex = 1:length(windowFiles)
+parfor fileIndex = 1:length(windowFiles)
     if windowFiles(fileIndex).isdir
         continue
     else
@@ -63,12 +63,6 @@ for fileIndex = 1:length(windowFiles)
     transmitterRCWindow = tx_rc_window(numSubcar, cpLength, csLength, ...
         tailTx);
     fileName = strcat('ber_', typeOFDM, '_', num2str(cpLength), 'CP');
-    if cpLength < 32
-        continue
-    end
-    if ~isequal(typeOFDM, 'wtx')
-        continue
-    end
     switch typeOFDM
         case {'wtx', 'CPwtx'}
             berOptSNR = zeros(length(snrValues), 1);
@@ -76,9 +70,6 @@ for fileIndex = 1:length(windowFiles)
             berRCSNR = zeros(length(snrValues), 1);
             berMaskedRCSNR = zeros(length(snrValues), 1);
             for snrIndex = 1:length(snrValues)
-                if snrValues(snrIndex) < 20
-                    continue
-                end
                 berOpt = 0;
                 berMaskedOpt = 0;
                 berRC = 0;

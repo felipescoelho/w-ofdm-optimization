@@ -11,3 +11,5 @@ specific settings for each system.
 - `main_interference_calculation.m` calculates the interference power for
 each system.
 - 
+
+## OBS.: Code was written using MATLAB R2021a to run on MATLAB R2017a.

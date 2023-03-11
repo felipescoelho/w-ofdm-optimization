@@ -29,7 +29,7 @@ if ~isdir(resultsPath)  %#ok
     mkdir(resultsPath)
 end
 
-parfor fileIndex = 1:length(windowFiles)
+for fileIndex = 1:length(windowFiles)
     if windowFiles(fileIndex).isdir
         continue
     else
@@ -63,6 +63,12 @@ parfor fileIndex = 1:length(windowFiles)
     transmitterRCWindow = tx_rc_window(numSubcar, cpLength, csLength, ...
         tailTx);
     fileName = strcat('ber_', typeOFDM, '_', num2str(cpLength), 'CP');
+    if cpLength < 32
+        continue
+    end
+    if ~isequal(typeOFDM, 'wtx')
+        continue
+    end
     switch typeOFDM
         case {'wtx', 'CPwtx'}
             berOptSNR = zeros(length(snrValues), 1);
@@ -70,6 +76,9 @@ parfor fileIndex = 1:length(windowFiles)
             berRCSNR = zeros(length(snrValues), 1);
             berMaskedRCSNR = zeros(length(snrValues), 1);
             for snrIndex = 1:length(snrValues)
+                if snrValues(snrIndex) < 20
+                    continue
+                end
                 berOpt = 0;
                 berMaskedOpt = 0;
                 berRC = 0;
@@ -407,7 +416,7 @@ function [filteredSignal] = dft_rc_filt(inputSignal, rollOff)
 
 [numSymbols, signalLength] = size(inputSignal);
 transformMatrix = dftmtx(2*signalLength - 1);
-invertTransformMatrix = dftmtx(2*signalLength - 1);
+invertTransformMatrix = dftmtx(2*signalLength - 1)'/(2*signalLength-1);
 inputSignalSpectrum = transformMatrix ...
     * ([inputSignal zeros(numSymbols, signalLength - 1)].');
 windowRC = gen_raised_cosine(floor(length(inputSignalSpectrum)/2), ...
@@ -419,7 +428,7 @@ filterTail = [zeros(1, signalLength-1); ...
 
 filteredSignal = [maskedSignal(:, 1:signalLength); zeros(1, signalLength)] ...
     + [filterTail zeros(numSymbols+1, 1)];
-filteredSignal = filteredSignal(2:end, :);
+filteredSignal = filteredSignal(1:end-1, :);
 end
 
 

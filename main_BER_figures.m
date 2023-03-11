@@ -410,21 +410,22 @@ for fileIndex = 1:length(resultFiles)
 end
 end
 
-function draw_box(top_left, bottom_right, line_width)
 
-top = top_left(2);
-left = top_left(1);
-bottom = bottom_right(2);
-right = bottom_right(1);
+function draw_box(topLeft, bottomRight, lineWidth)
+
+top = topLeft(2);
+left = topLeft(1);
+bottom = bottomRight(2);
+right = bottomRight(1);
 
 
-plot([left right], [top top], 'k', 'linewidth', line_width,...
+plot([left right], [top top], 'k', 'linewidth', lineWidth,...
     'Handlevisibility', 'off'), hold on
-plot([right right], [top bottom], 'k', 'linewidth', line_width,...
+plot([right right], [top bottom], 'k', 'linewidth', lineWidth,...
     'HandleVisibility', 'off')
-plot([left right], [bottom bottom], 'k', 'linewidth', line_width,...
+plot([left right], [bottom bottom], 'k', 'linewidth', lineWidth,...
     'HandleVisibility', 'off')
-plot([left left], [bottom top], 'k', 'linewidth', line_width,...
+plot([left left], [bottom top], 'k', 'linewidth', lineWidth,...
     'HandleVisibility', 'off')
 end
 

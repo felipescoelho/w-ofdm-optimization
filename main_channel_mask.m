@@ -29,7 +29,7 @@ if ~isdir(resultsPath)  %#ok
     mkdir(resultsPath)
 end
 
-parfor fileIndex = 1:length(windowFiles)
+for fileIndex = 1:length(windowFiles)
     if windowFiles(fileIndex).isdir
         continue
     else
@@ -391,12 +391,6 @@ OFDMSymbols = invertTransformMatrix*ifftshift(symbolsInOFDM.', 1);
 redundancyMatrix = add_redundancy_matrix(numSubcar, cpLength, csLength);
 OFDMSymbolsWithRedundancy = redundancyMatrix*OFDMSymbols;
 wOFDMTx = (windowTx*OFDMSymbolsWithRedundancy).';
-% transformMatrix = dftmtx(numSubcar+cpLength+csLength);
-% wOFDMSpectrum = transformMatrix*(wOFDMTx.');
-% maskedSpectrum = diag(windowRC)*wOFDMSpectrum;
-% invertTransformMatrix = dftmtx(numSubcar+cpLength+csLength)' ...
-%     /(numSubcar+cpLength+csLength); 
-% maskedwOFDMTx = (invertTransformMatrix*maskedSpectrum).';
 maskedwOFDMTx = dft_rc_filt(wOFDMTx, rollOff);
 end
 
@@ -417,8 +411,8 @@ maskedSignal = (invertTransformMatrix*maskedSpectrum).';
 filterTail = [zeros(1, signalLength-1); ...
     maskedSignal(1:end, signalLength+1:end)];
 
-filteredSignal = [maskedSignal(:, 1:signalLength); zeros(1, signalLength)] ...
-    + [filterTail zeros(numSymbols+1, 1)];
+filteredSignal = [maskedSignal(:, 1:signalLength); ...
+    zeros(1, signalLength)] + [filterTail zeros(numSymbols+1, 1)];
 filteredSignal = filteredSignal(1:end-1, :);
 end
 

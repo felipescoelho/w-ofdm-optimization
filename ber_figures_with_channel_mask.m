@@ -31,14 +31,14 @@ listSystems = {'wtx', 'wrx', 'CPwtx', 'CPwrx', 'WOLA', 'CPW'};
 %         optWindowResults, optMaskedWindowResults, ...
 %         listSystems{typeOFDMIndex})
 % end
-plot_ber_cut_cp(16)
+plot_ber_cut_cp(22)
 
 
 function plot_ber_cut_cp(cpLength)
 % PLOT_BER_CUT_CP   Plot different systems for a single CP length.
 %
 
-global settingsFileName resultsFolder listSystems
+global settingsFileName resultsFolder listSystems figuresFolder
 
 settingsLoader = load(settingsFileName);
 snrValues = settingsLoader.settingsData.generalSettings.snrValues;
@@ -92,10 +92,16 @@ height = 2*width/(1+sqrt(5));
 fontSize = 14;
 lineWidth = 1.5;
 markerSize = 13;
-horizontalLeftDistance = 2.5;
+horizontalLeftDistance = 2;
 verticalBottomDistance = 2;
-plotWidth = width - 1.5*horizontalLeftDistance;
+plotWidth = width/2 - horizontalLeftDistance;
 plotHeight = height - 1.5*verticalBottomDistance;
+lineWidthZoom = 1.5;
+fontSizeZoom = 14;
+plotWidthZoom = plotWidth/2 - 1.5;
+plotHeightZoom = plotHeight/2;
+horizontalLeftDistanceZoom = horizontalLeftDistance + 1.25;
+verticalBottomDistanceZoom = verticalBottomDistance + 1;
 fig = figure;
 fig.Name = strcat('BER for ', num2str(cpLength), ' CP');
 fig.Units = 'centimeters';
@@ -103,6 +109,16 @@ fig.Color = 'w';
 fig.Position = [10 10 width height];
 ax1 = axes('units', 'centimeters', 'position', [horizontalLeftDistance, ...
     verticalBottomDistance, plotWidth, plotHeight]);
+ax1Zoom = axes('units', 'centimeters', 'position', ...
+    [horizontalLeftDistanceZoom, verticalBottomDistanceZoom, ...
+    plotWidthZoom, plotHeightZoom]);
+ax2 = axes('units', 'centimeters', 'position', ...
+    [1.75*horizontalLeftDistance + plotWidth, verticalBottomDistance, ...
+    plotWidth, plotHeight]);
+ax2Zoom = axes('units', 'centimeters', 'position', ...
+    [horizontalLeftDistanceZoom+plotWidth+.75*horizontalLeftDistance, ...
+    verticalBottomDistanceZoom, plotWidthZoom, plotHeightZoom]);
+% Plot 1
 subplot(ax1)
 indexedLineStyle = {'d-', 's-', 'o-', '*-', '+-', 'x-'};
 for idx = 1:length(listSystems)
@@ -119,6 +135,105 @@ for idx = 1:length(listSystems)
         strcat(indexedLineStyle{idx}, '-'), 'LineWidth', lineWidth, ...
         'MarkerSize', markerSize)
 end
+topLeft = [40 2*1e-4];
+bottomRight = [50 1e-5];
+draw_box(topLeft, bottomRight, lineWidth)
+hold off, grid on
+xlim([-20 50])
+set(ax1, 'FontSize', fontSize)
+set(ax1, 'TickLabelInterpreter', 'latex')
+set(ax1, 'linewidth', lineWidth)
+set(ax1, 'XColor', 'k')
+set(ax1, 'YColor', 'k')
+xlabel('SNR, dB', 'interpreter', 'latex', 'FontSize', fontSize, ...
+    'Color', 'k')
+ylabel('BER', 'interpreter', 'latex', 'FontSize', fontSize, 'Color', 'k')
+title('(a)', 'interpreter', 'latex', 'FontSize', fontSize, 'Color', 'k')
+% Zoom plot 1
+subplot(ax1Zoom)
+for idx = 1:length(listSystems)
+    semilogy(snrValues, selectedResults(idx, :, 1), ...
+        indexedLineStyle{idx}, 'LineWidth', lineWidthZoom, 'MarkerSize', ...
+        markerSize)
+    if idx == 1
+        hold on
+    end
+end
+ax1Zoom.ColorOrderIndex = 1;
+for idx = 1:length(listSystems)
+    semilogy(snrValues, selectedResults(idx, :, 2), ...
+        strcat(indexedLineStyle{idx}, '-'), 'LineWidth', lineWidthZoom, ...
+        'MarkerSize', markerSize)
+end
+hold off, grid on
+xlim([topLeft(1) bottomRight(1)])
+ylim([bottomRight(2) topLeft(2)])
+set(ax1Zoom, 'FontSize', fontSizeZoom)
+set(ax1Zoom, 'TickLabelInterpreter', 'latex')
+set(ax1Zoom, 'linewidth', lineWidthZoom)
+set(ax1Zoom, 'XColor', 'k')
+set(ax1Zoom, 'YColor', 'k')
+% Plot 2
+subplot(ax2)
+for idx = 1:length(listSystems)
+    semilogy(snrValues, selectedResults(idx, :, 3), ...
+        indexedLineStyle{idx}, 'LineWidth', lineWidth, 'MarkerSize', ...
+        markerSize)
+    if idx == 1
+        hold on
+    end
+end
+ax2.ColorOrderIndex = 1;
+for idx = 1:length(listSystems)
+    semilogy(snrValues, selectedResults(idx, :, 4), ...
+        strcat(indexedLineStyle{idx}, '-'), 'LineWidth', lineWidth, ...
+        'MarkerSize', markerSize)
+end
+topLeft = [40 3*1e-4];
+bottomRight = [50 2*1e-5];
+draw_box(topLeft, bottomRight, lineWidth)
+lgd = legend(listSystems);
+lgd.Units = 'centimeters';
+lgd.Interpreter = 'latex';
+lgd.FontSize = fontSize-2;
+lgd.NumColumns = 1;
+hold off, grid on
+xlim([-20 50])
+set(ax2, 'FontSize', fontSize)
+set(ax2, 'TickLabelInterpreter', 'latex')
+set(ax2, 'linewidth', lineWidth)
+set(ax2, 'XColor', 'k')
+set(ax2, 'YColor', 'k')
+xlabel('SNR, dB', 'interpreter', 'latex', 'FontSize', fontSize, ...
+    'Color', 'k')
+title('(b)', 'interpreter', 'latex', 'FontSize', fontSize, 'Color', 'k')
+% Zoom plot 2
+subplot(ax2Zoom)
+for idx = 1:length(listSystems)
+    semilogy(snrValues, selectedResults(idx, :, 3), ...
+        indexedLineStyle{idx}, 'LineWidth', lineWidth, 'MarkerSize', ...
+        markerSize)
+    if idx == 1
+        hold on
+    end
+end
+ax2Zoom.ColorOrderIndex = 1;
+for idx = 1:length(listSystems)
+    semilogy(snrValues, selectedResults(idx, :, 4), ...
+        strcat(indexedLineStyle{idx}, '-'), 'LineWidth', lineWidth, ...
+        'MarkerSize', markerSize)
+end
+hold off, grid on
+xlim([topLeft(1) bottomRight(1)])
+ylim([bottomRight(2) topLeft(2)])
+set(ax2Zoom, 'FontSize', fontSizeZoom)
+set(ax2Zoom, 'TickLabelInterpreter', 'latex')
+set(ax2Zoom, 'linewidth', lineWidthZoom)
+set(ax2Zoom, 'XColor', 'k')
+set(ax2Zoom, 'YColor', 'k')
+
+fileName = strcat('ber_cp_cut_', num2str(cpLength), '_CP');
+saveas(fig, [figuresFolder '/' fileName '.eps'], 'epsc')
 end
 
 
@@ -339,3 +454,26 @@ switch typeOFDM
 end
 end
 
+
+function draw_box(topLeft, bottomRight, lineWidth)
+% DRAW_BOX  Function to draw box representing zoom area.
+%
+
+top = topLeft(2);
+left = topLeft(1);
+bottom = bottomRight(2);
+right = bottomRight(1);
+
+
+plot([left right], [top top], 'k', 'linewidth', lineWidth,...
+    'Handlevisibility', 'off'), hold on
+plot([right right], [top bottom], 'k', 'linewidth', lineWidth,...
+    'HandleVisibility', 'off')
+plot([left right], [bottom bottom], 'k', 'linewidth', lineWidth,...
+    'HandleVisibility', 'off')
+plot([left left], [bottom top], 'k', 'linewidth', lineWidth,...
+    'HandleVisibility', 'off')
+end
+
+
+% EoF

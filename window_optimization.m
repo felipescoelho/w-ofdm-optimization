@@ -230,11 +230,13 @@ intersymbolInterference = sum(interferenceArray(:, :, 2:end), 3);
 windowTxRC = transmitter_rc_window(numSubcar, cpLength, csLength, tailTx);
 windowRxRC = receiver_rc_window(numSubcar, tailRx);
 options = optimoptions(@fmincon);
-options.Algorithm = 'active-set';
-options.Display = 'off';
-options.MaxIterations = 1000;
-options.MaxFunctionEvaluations = 6000;
+options.Algorithm = 'sqp';
+options.Display = 'final-detailed';
+% options.MaxIterations = 1000;
+options.MaxFunctionEvaluations = 10000;
 options.UseParallel = false;
+options.StepTolerance = 1e-128;
+options.OptimalityTolerance = 0.0;
 maxTries = 10;
 switch typeOFDM
     case {'wtx', 'CPwtx'}
@@ -258,12 +260,13 @@ switch typeOFDM
         while tryCount < maxTries
             tryCount = tryCount + 1;
             if exitFlag == 0
-                [windowVector, ~, exitFlag] = fmincon(...
+                [windowVector, val, exitFlag] = fmincon(...
                     objectiveFunction, initialValue, [], [], Aeq, beq, ...
                     lowerBounds, upperBounds, [], options);
                 initialValue = windowVector;
             end
         end
+        fprintf('Interf. Power %.4e \n', val)
         if exitFlag == 0
             fprintf('Failure in optimization for %s with %u CP.\n', ...
                 typeOFDM, cpLength)

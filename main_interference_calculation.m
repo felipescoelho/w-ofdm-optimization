@@ -36,7 +36,6 @@ typeOFDMSet = {'wtx', 'wrx', 'WOLA', 'CPW', 'CPwrx', 'CPwtx'};
 settingsLoader = load(settingsFileName);
 numSubcar = settingsLoader.settingsData.generalSettings.numberSubcarriers;
 cpLengthVector = settingsLoader.settingsData.generalSettings.cyclicPrefix;
-alpha = .99;
 for typeIndex = 1:length(typeOFDMSet)
     typeOFDM = typeOFDMSet{typeIndex};
     tailRx = settingsLoader.settingsData.(typeOFDM).tailRx;
@@ -58,10 +57,10 @@ for typeIndex = 1:length(typeOFDMSet)
                 windowRx = receiver_rc_window(numSubcar, tailRx);
                 optWindowInterference(cpIndex) = ...
                     calculate_interference(cpLength, typeOFDM, ...
-                    windowTx, windowRx, alpha);
+                    windowTx, windowRx);
                 rcWindowInterference(cpIndex) = ...
                     calculate_interference(cpLength, typeOFDM, ...
-                    windowTxRC, windowRx, alpha);
+                    windowTxRC, windowRx);
             end
             fileToSave = strcat('interference_', typeOFDM);
             save([folderToSave '/' fileToSave], 'rcWindowInterference', ...
@@ -80,10 +79,10 @@ for typeIndex = 1:length(typeOFDMSet)
                 windowRxRC = receiver_rc_window(numSubcar, tailRx);
                 optWindowInterference(cpIndex) = ...
                     calculate_interference(cpLength, typeOFDM, ...
-                    windowTx, windowRx, alpha);
+                    windowTx, windowRx);
                 rcWindowInterference(cpIndex) = ...
                     calculate_interference(cpLength, typeOFDM, ...
-                    windowTx, windowRxRC, alpha);
+                    windowTx, windowRxRC);
             end
             fileToSave = strcat('interference_', typeOFDM);
             save([folderToSave '/' fileToSave], 'rcWindowInterference', ...
@@ -112,25 +111,25 @@ for typeIndex = 1:length(typeOFDMSet)
                 windowCaseBStep3 = windowLoader.optimizedWindowCaseBStep3;
                 optInterferenceCaseAStep1(cpIndex) = ...
                     calculate_interference(cpLength, typeOFDM, ...
-                    windowCaseAStep1, windowRxRC, alpha);
+                    windowCaseAStep1, windowRxRC);
                 optInterferenceCaseAStep2(cpIndex) = ...
                     calculate_interference(cpLength, typeOFDM, ...
-                    windowCaseAStep1, windowCaseAStep2, alpha);
+                    windowCaseAStep1, windowCaseAStep2);
                 optInterferenceCaseAStep3(cpIndex) = ...
                     calculate_interference(cpLength, typeOFDM, ...
-                    windowCaseAStep3, windowCaseAStep2, alpha);
+                    windowCaseAStep3, windowCaseAStep2);
                 optInterferenceCaseBStep1(cpIndex) = ...
                     calculate_interference(cpLength, typeOFDM, ...
-                    windowTxRC, windowCaseBStep1, alpha);
+                    windowTxRC, windowCaseBStep1);
                 optInterferenceCaseBStep2(cpIndex) = ...
                     calculate_interference(cpLength, typeOFDM, ...
-                    windowCaseBStep2, windowCaseBStep1, alpha);
+                    windowCaseBStep2, windowCaseBStep1);
                 optInterferenceCaseBStep3(cpIndex) = ...
                     calculate_interference(cpLength, typeOFDM, ...
-                    windowCaseBStep2, windowCaseBStep3, alpha);
+                    windowCaseBStep2, windowCaseBStep3);
                 rcWindowInterference(cpIndex) = ...
                     calculate_interference(cpLength, typeOFDM, ...
-                    windowTxRC, windowRxRC, alpha);
+                    windowTxRC, windowRxRC);
             end
             fileToSave = strcat('interference_', typeOFDM);
             save([folderToSave '/' fileToSave], 'rcWindowInterference', ...
@@ -176,7 +175,7 @@ end
 
 
 function interferencePower = calculate_interference(cpLength, typeOFDM, ...
-    windowTx, windowRx, alpha)
+    windowTx, windowRx)
 % Funtion to calculate interference for a given system
 %
 % - Input
@@ -200,7 +199,7 @@ interferenceArray = array_ici_isi(meanChannelImpulseResponse, ...
 intercarrierInterference = interferenceArray(:, :, 1);
 intersymbolInterference = sum(interferenceArray(:, :, 2:end), 3);
 % Generating system matrices for calculations
-transformMatrix = transform_matrix(numSubcar);
+transformMatrix = dftmtx(numSubcar);
 invertTransformMatrix = conj(transformMatrix)/numSubcar;
 circularShiftMatrix = circular_shift_matrix(numSubcar, circularShiftLength);
 overlapAddMatrix = overlap_and_add_matrix(numSubcar, tailRx);
@@ -214,14 +213,17 @@ matrixAm = transformMatrix*circularShiftMatrix*overlapAddMatrix ...
     * windowRx*removeRedundancyMatrix*intersymbolInterference ...
     * windowTx*addRedundancyMatrix*invertTransformMatrix;
 matrixA0ICI1 = matrixA0 - diag(diag(matrixA0));
-matrixAmISI = diag(diag(matrixAm));
-matrixAmICI2 = matrixAm - matrixAmISI;
-PICI1 = alpha*diag(matrixA0ICI1*matrixA0ICI1');
-PISI = (1-alpha)*diag(matrixAmISI*matrixAmISI');
-PICI2 = (1-alpha)*diag(matrixAmICI2*matrixAmICI2');
-
-interferencePower = sum(PICI1 + PISI + PICI2);
+% matrixAmISI = diag(diag(matrixAm));
+% matrixAmICI2 = matrixAm - matrixAmISI;
+% PICI1 = diag(matrixA0ICI1*matrixA0ICI1');
+PICI1 = trace(ctranspose(matrixA0ICI1)*matrixA0ICI1);
+PISIandICI2 = trace(ctranspose(matrixAm)*matrixAm);
+% PISI = diag(matrixAmISI*matrixAmISI');
+% PICI2 = diag(matrixAmICI2*matrixAmICI2');
+interferencePower = PICI1+PISIandICI2;
+% interferencePower = sum(PICI1 + PISI + PICI2);
 end
+
 
 
 function overlapAddMatrix = overlap_and_add_matrix(numSubcar, tailRx)

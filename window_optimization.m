@@ -55,7 +55,7 @@ clear settingsData
 
 
 alpha = .5;
-parfor fieldIndex = 1:length(fields)
+for fieldIndex = 1:length(fields)
     fieldName = fields{fieldIndex};
     dataLoader = load(settingsFileName);
     numSubcar = dataLoader.settingsData.generalSettings.numberSubcarriers;

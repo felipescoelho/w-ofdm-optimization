@@ -28,7 +28,7 @@ if ~isdir(berResultsFolder)  %#ok
 end
 
 
-for fileIndex = 1:length(windowFiles)
+parfor fileIndex = 1:length(windowFiles)
     if windowFiles(fileIndex).isdir
         continue
     else

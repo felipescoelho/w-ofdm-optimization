@@ -175,6 +175,7 @@ lgd.Position(1) = horizontalLeftDistance + .25;
 lgd.Position(2) = verticalBottomDistance + .25;
 lgd.NumColumns = 1;
 xlim([10 32])
+ylim([1e-15 1])
 
 fileName = 'best_performing_interf_power.eps';
 filePath = [figuresFolder '/' fileName];

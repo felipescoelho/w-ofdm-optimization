@@ -91,14 +91,14 @@ width = 22;
 height = 2*width/(1+sqrt(5));
 fontSize = 14;
 lineWidth = 1.5;
-markerSize = 13;
+markerSize = 11;
 horizontalLeftDistance = 2;
 verticalBottomDistance = 2;
 plotWidth = width/2 - horizontalLeftDistance;
 plotHeight = height - 1.5*verticalBottomDistance;
 lineWidthZoom = 1.5;
-fontSizeZoom = 14;
-plotWidthZoom = plotWidth/2 - 1.5;
+fontSizeZoom = 12;
+plotWidthZoom = plotWidth/2 - 1;
 plotHeightZoom = plotHeight/2;
 horizontalLeftDistanceZoom = horizontalLeftDistance + 1.25;
 verticalBottomDistanceZoom = verticalBottomDistance + 1;
@@ -171,6 +171,8 @@ ylim([bottomRight(2) topLeft(2)])
 set(ax1Zoom, 'FontSize', fontSizeZoom)
 set(ax1Zoom, 'TickLabelInterpreter', 'latex')
 set(ax1Zoom, 'linewidth', lineWidthZoom)
+set(ax1Zoom.XAxis, 'TickLabelFormat', '\\textbf{%g}')
+set(ax1Zoom.YAxis, 'TickLabels', {'$\bf 10^{-4}$'})
 set(ax1Zoom, 'XColor', 'k')
 set(ax1Zoom, 'YColor', 'k')
 % Plot 2
@@ -231,6 +233,8 @@ set(ax2Zoom, 'TickLabelInterpreter', 'latex')
 set(ax2Zoom, 'linewidth', lineWidthZoom)
 set(ax2Zoom, 'XColor', 'k')
 set(ax2Zoom, 'YColor', 'k')
+set(ax2Zoom.XAxis, 'TickLabelFormat', '\\textbf{%g}')
+set(ax2Zoom.YAxis, 'TickLabels', {'$\bf 10^{-4}$'})
 
 fileName = strcat('ber_cp_cut_', num2str(cpLength), '_CP');
 saveas(fig, [figuresFolder '/' fileName '.eps'], 'epsc')

@@ -1,2 +1,18 @@
-random_search/*
+# Folders
+
 references/*
+channels/*
+optimized_windows/*
+ber_results/*
+interference_results/*
+oob_figures/*
+logs/*
+
+# Files
+
+*.asv
+*.mat
+*.eps
+*.fig
+*.zip
+

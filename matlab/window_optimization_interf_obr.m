@@ -632,7 +632,7 @@ B2 = transformMatrix*circularShiftMatrix*overlapAddMatrix*windowRx ...
 H2 = real(diag(diag(ctranspose(B2)*B2*C*ctranspose(C))));
 
 % OBR factor
-f = 
+f = []
 matrixM = zeros(numSubcar, numSubcar+tailTx);
 for fIndex = 1:numsubcar
     for i = 1:numSubcar

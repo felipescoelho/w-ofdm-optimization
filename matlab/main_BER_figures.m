@@ -44,7 +44,7 @@ for typeOFDMIndex = 1:length(listSystems)
 end
 close all
 % Plot cut
-plot_ber_cut_cp(22)
+plot_ber_cut_cp(18)
 
 function plot_ber_surf(rcWindowResults, optWindowResults, typeOFDM)
 

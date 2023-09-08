@@ -31,7 +31,7 @@ listSystems = {'wtx', 'wrx', 'CPwtx', 'CPwrx', 'WOLA', 'CPW'};
 %         optWindowResults, optMaskedWindowResults, ...
 %         listSystems{typeOFDMIndex})
 % end
-plot_ber_cut_cp(22)
+plot_ber_cut_cp(18)
 
 
 function plot_ber_cut_cp(cpLength)
@@ -136,7 +136,7 @@ for idx = 1:length(listSystems)
         'MarkerSize', markerSize)
 end
 topLeft = [40 2*1e-4];
-bottomRight = [50 1e-5];
+bottomRight = [50 4*1e-6];
 draw_box(topLeft, bottomRight, lineWidth)
 hold off, grid on
 xlim([-20 50])

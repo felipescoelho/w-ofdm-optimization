@@ -7,6 +7,7 @@ ber_results/
 interference_results/
 oob_figures/
 logs/
+__pycache__/
 
 # Files
 

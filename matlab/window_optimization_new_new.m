@@ -19,7 +19,7 @@ channelPath = './channels/vehA200channel2.mat';
 if ~isdir(savePath)  %#ok
     mkdir(savePath)
 end
-assert(isfile(channelPath), 'Missing channel folder')
+assert(isfile(channelPath), 'Missing channel folder.\n')
 settingsFileName = 'settingsData.mat';
 fprintf('Generating settingsData structure array.\n')
 settingsData = struct();
@@ -46,12 +46,12 @@ for fieldIndex = 1:length(fields)
     dftLength = dataLoader.settingsData.generalSettings.numberSubcarriers;
     cpLengthVect = dataLoader.settingsData.generalSettings.cyclicPrefix;
     fprintf('Working on %s-OFDM ...\n', fieldName)
-    switch fieldName
-        case 'wtx'
-            tailTx = dataLoader.settingsData.(fieldName).tailTx;
-            tailRx = dataLoader.settingsData.(fieldName).tailRx;
-            for cpIndex = 1:length(cpLengthVect)
-                cpLength = cpLengthVect(cpIndex);
+    for cpIndex = 1:length(cpLengthVect)
+        cpLength = cpLengthVect(cpIndex);
+        switch fieldName
+            case 'wtx'
+                tailTx = dataLoader.settingsData.(fieldName).tailTx;
+                tailRx = dataLoader.settingsData.(fieldName).tailRx;
                 csLength = tailTx;
                 prefixRemovalLength = cpLength;
                 circularShiftLength = 0;
@@ -68,7 +68,102 @@ for fieldIndex = 1:length(fields)
                 optimize_window(fieldName, cpLength, csLength, ...
                     dftLength, tailTx, tailRx, prefixRemovalLength, ...
                     circularShiftLength)
-            end
+            case 'CPwtx'
+                tailTx = dataLoader.settingsData.(fieldName).tailTx;
+                tailRx = dataLoader.settingsData.(fieldName).tailRx;
+                csLength = 0;
+                prefixRemovalLength = cpLength - tailTx;
+                circularShift = tailTx;
+                fprintf('--------------------------------------------\n')
+                fprintf('Settings:\n')
+                fprintf('N = %u (Subcarriers)\n', dftLength)
+                fprintf('mu = %u (CP length)\n', cpLength)
+                fprintf('rho = %u (CS length)\n', csLength)
+                fprintf('beta = %u (Tx tail)\n', tailTx)
+                fprintf('delta = %u (Rx tail)\n', tailRx)
+                fprintf('gamma = %u (Samples removed Rx)\n', ...
+                    prefixRemovalLength)
+                fprintf('kappa = %u (Circ shift)\n', circularShiftLength)
+                optimize_window(fieldName, cpLength, csLength, ...
+                    dftLength, tailTx, tailRx, prefixRemovalLength, ...
+                    circularShiftLength)
+            case 'wrx'
+                tailTx = dataLoader.settingsData.(fieldName).tailTx;
+                tailRx = dataLoader.settingsData.(fieldName).tailRx;
+                csLength = tailRx/2;
+                prefixRemovalLength = cpLength - tailRx/2;
+                circularShiftLength = 0;
+                fprintf('--------------------------------------------\n')
+                fprintf('Settings:\n')
+                fprintf('N = %u (Subcarriers)\n', dftLength)
+                fprintf('mu = %u (CP length)\n', cpLength)
+                fprintf('rho = %u (CS length)\n', csLength)
+                fprintf('beta = %u (Tx tail)\n', tailTx)
+                fprintf('delta = %u (Rx tail)\n', tailRx)
+                fprintf('gamma = %u (Samples removed Rx)\n', ...
+                    prefixRemovalLength)
+                fprintf('kappa = %u (Circ shift)\n', circularShiftLength)
+                optimize_window(fieldName, cpLength, csLength, ...
+                    dftLength, tailTx, tailRx, prefixRemovalLength, ...
+                    circularShiftLength)
+            case 'CPwrx'
+                tailTx = dataLoader.settingsData.(fieldName).tailTx;
+                tailRx = dataLoader.settingsData.(fieldName).tailRx;
+                csLength = 0;
+                prefixRemovalLength = cpLength - tailRx;
+                circularShiftLength = tailRx/2;
+                fprintf('--------------------------------------------\n')
+                fprintf('Settings:\n')
+                fprintf('N = %u (Subcarriers)\n', dftLength)
+                fprintf('mu = %u (CP length)\n', cpLength)
+                fprintf('rho = %u (CS length)\n', csLength)
+                fprintf('beta = %u (Tx tail)\n', tailTx)
+                fprintf('delta = %u (Rx tail)\n', tailRx)
+                fprintf('gamma = %u (Samples removed Rx)\n', ...
+                    prefixRemovalLength)
+                fprintf('kappa = %u (Circ shift)\n', circularShiftLength)
+                optimize_window(fieldName, cpLength, csLength, ...
+                    dftLength, tailTx, tailRx, prefixRemovalLength, ...
+                    circularShiftLength)
+            case 'CPW'
+                tailTx = dataLoader.settingsData.(fieldName).tailTx;
+                tailRx = dataLoader.settingsData.(fieldName).tailRx;
+                csLength = tailTx + tailRx/2;
+                prefixRemovalLength = cpLength - tailRx/2;
+                circularShiftLength = 0;
+                fprintf('--------------------------------------------\n')
+                fprintf('Settings:\n')
+                fprintf('N = %u (Subcarriers)\n', dftLength)
+                fprintf('mu = %u (CP length)\n', cpLength)
+                fprintf('rho = %u (CS length)\n', csLength)
+                fprintf('beta = %u (Tx tail)\n', tailTx)
+                fprintf('delta = %u (Rx tail)\n', tailRx)
+                fprintf('gamma = %u (Samples removed Rx)\n', ...
+                    prefixRemovalLength)
+                fprintf('kappa = %u (Circ shift)\n', circularShiftLength)
+                optimize_window(fieldName, cpLength, csLength, ...
+                    dftLength, tailTx, tailRx, prefixRemovalLength, ...
+                    circularShiftLength)
+            case 'WOLA'
+                tailTx = dataLoader.settingsData.(fieldName).tailTx;
+                tailRx = dataLoader.settingsData.(fieldName).tailRx;
+                csLength = tailTx;
+                prefixRemovalLength = cpLength - tailRx;
+                circularShiftLength = tailRx/2;
+                fprintf('--------------------------------------------\n')
+                fprintf('Settings:\n')
+                fprintf('N = %u (Subcarriers)\n', dftLength)
+                fprintf('mu = %u (CP length)\n', cpLength)
+                fprintf('rho = %u (CS length)\n', csLength)
+                fprintf('beta = %u (Tx tail)\n', tailTx)
+                fprintf('delta = %u (Rx tail)\n', tailRx)
+                fprintf('gamma = %u (Samples removed Rx)\n', ...
+                    prefixRemovalLength)
+                fprintf('kappa = %u (Circ shift)\n', circularShiftLength)
+                optimize_window(fieldName, cpLength, csLength, ...
+                    dftLength, tailTx, tailRx, prefixRemovalLength, ...
+                    circularShiftLength)
+        end
     end
 end
 

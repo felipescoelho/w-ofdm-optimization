@@ -56,7 +56,7 @@ C2 = removeRedundancyMatrix*intersymbolInterference*windowTx ...
     * addRedundancyMatrix*invTransformMatrix;
 H2 = real(diag(diag(ctranspose(B)*B*C2*ctranspose(C2))));
 H = H1 + H2;
-reduceVariableMatrix = reduce_variable_matrix(dftLength, tailRx);
+reduceVariableMatrix = reduce_variable_matrix(dftLength-tailRx, tailRx);
 hessianRx = 2*(transpose(reduceVariableMatrix)*H*reduceVariableMatrix);
 end
 

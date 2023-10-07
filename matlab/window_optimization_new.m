@@ -28,7 +28,7 @@ fprintf('in the different w-OFDM systems.\n\n')
 global folderName
 
 
-folderName = 'optimized_windows_new';
+folderName = 'optimized_windows_new00';
 if ~isdir(folderName)  %#ok
     mkdir(folderName)
 end

@@ -10,7 +10,7 @@ fprintf('We have a total of %d windows.\n\n', (6*2 + 4)*12)
 
 global folderName
 
-folderName = 'optimized_windows_new';
+folderName = 'optimized_windows_new0';
 assert(isdir(folderName), 'Something is wrong. Could not find %s', ...
     folderName)  %#ok
 windowFiguresFolder = [folderName '/figures'];

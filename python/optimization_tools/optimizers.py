@@ -8,7 +8,7 @@ Jul 23, 2023
 
 
 import sympy as sym
-from utils import (
+from ofdm_utils import (
     gen_idft_matrix, gen_rc_window_tx, gen_add_redundancy_matrix,
     gen_rm_redundancy_matrix, gen_overlap_and_add, gen_dft_matrix,
     gen_circ_shift_matrix, gen_channel_tensor

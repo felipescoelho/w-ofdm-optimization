@@ -15,7 +15,7 @@ close all
 fprintf('Starting main_interference_calculation.m ... \n\n')
 
 global folderName settingsFileName channelsFilePath
-folderName = 'optimized_windows_new';
+folderName = 'optimized_windows_new00';
 if ~isdir(folderName)  %#ok
     error('Missing %s folder.', folderName)
 end

@@ -50,7 +50,8 @@ def rayleigh_fading_jakes(no_oscillators:int, doppler_freq:float,
 
 
 def rayleigh_fading_gmeds_1(no_oscillators:int, doppler_freq:float,
-                            sampling_freq:float, no_waveforms:int):
+                            no_channels:int, sampling_freq:float,
+                            no_waveforms:int):
     """Method to generate Rayleigh fading waveform using the GMEDS_1
     algorithm described in:
     
@@ -68,6 +69,8 @@ def rayleigh_fading_gmeds_1(no_oscillators:int, doppler_freq:float,
         Maximum Doppler frequency.
     sampling_freq : float
         Sampling rate.
+    no_channels : int
+        Number of channels in simulation.
     no_waveforms : int
         Total number of uncorrelated waveforms.
     
@@ -77,7 +80,7 @@ def rayleigh_fading_gmeds_1(no_oscillators:int, doppler_freq:float,
         Rayleigh fading waveform.
     """
 
-    time_axis = np.arange(0, 1, 1/sampling_freq)
+    time_axis = np.arange(0, no_channels, 1)/sampling_freq
     rayleigh_fading_waveforms = np.zeros((len(time_axis), no_waveforms),
                                          dtype=np.complex128)
     for wave_idx in range(no_waveforms):

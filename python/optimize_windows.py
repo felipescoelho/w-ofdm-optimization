@@ -8,7 +8,7 @@ Jul 22, 2023
 import numpy as np
 import matplotlib.pyplot as plt
 from optimization_tools import OptimizerTx
-from utils import gen_channel_tensor_sym
+from ofdm_utils import gen_channel_tensor_sym
 
 
 if __name__ == '__main__':

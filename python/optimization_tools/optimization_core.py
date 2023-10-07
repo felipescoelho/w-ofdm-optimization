@@ -224,7 +224,7 @@ def pd_pf_cqp(H:np.ndarray, p:np.ndarray, A:np.ndarray, b:np.ndarray,
 # @jit(nopython=True)
 def nfi_pd_pf_cqp(H:np.ndarray, p:np.ndarray, A:np.ndarray, b:np.ndarray,
                   init_point=None, rho=None, epsilon=None):
-    """Nonfeasible-initialization primal-dual path folloswing algorithm
+    """Nonfeasible-initialization primal-dual path following algorithm
     for convex QP problems.
     
     From Algorithm 13.3 in Antoniou, A. and Lu W. "Practical

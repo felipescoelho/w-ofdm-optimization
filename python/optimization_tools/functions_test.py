@@ -16,6 +16,7 @@ from optimization_core import (
     recover_variable
 )
 
+
 class TestOptimizationAlgorithms(unittest.TestCase):
 
     def test_eliminate_equality(self):

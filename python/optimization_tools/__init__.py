@@ -5,7 +5,7 @@ Jul 23, 2023
 """
 
 
-__all__ = 'OptimizerTx'
+__all__ = ['OptimizerTx']
 
 
 from .optimizers import OptimizerTx

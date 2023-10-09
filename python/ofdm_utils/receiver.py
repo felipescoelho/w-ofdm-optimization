@@ -8,7 +8,6 @@ Jul 23, 2023
 
 
 import numpy as np
-import sympy as sym
 
 
 def gen_rm_redundancy_matrix(dft_len:int, tail_len:int, rm_len:int):
@@ -34,8 +33,8 @@ def gen_rm_redundancy_matrix(dft_len:int, tail_len:int, rm_len:int):
     return rm_redundancy_mat
 
 
-def gen_rc_window_rx_vector(dft_len:int, tail_len:int):
-    """Method to generate the Raised Cosine window for receiver using sympy.
+def gen_rc_window_rx(dft_len:int, tail_len:int):
+    """Method to generate the Raised Cosine window for receiver.
     
     Parameters
     ----------
@@ -50,162 +49,93 @@ def gen_rc_window_rx_vector(dft_len:int, tail_len:int):
         Raised cosine window for the receiver.
     """
 
-    rc_axis = np.arange(0, 1, tail_len)
-    rc_fun = lambda x: np.sin((sym.pi*x) / (2*tail_len))**2
-    rc_tail = rc_axis.applyfunc(rc_fun)
-    rc_window = (
-        rc_tail.col_join(sym.ones(dft_len-tail_len, 1))
-    ).col_join(rc_tail.permute_rows(list(np.arange(tail_len-1, -1, -1))))
+    tail_axis = np.arange(-(tail_len+1)/2 + 1, (tail_len+1)/2 -1, 1)
+    rc_tail = np.sin(np.pi/2 * (.5 + tail_axis/tail_len))
+    rc_window = np.hstack((rc_tail, np.ones((dft_len-tail_len,)), rc_tail[::-1]))
 
-    return rc_window
+    return np.diag(rc_window)
 
 
-def gen_rm_redundancy_sym(dft_len:int, tail_len:int, rm_len:int):
-    """Method to generate the matrix that recovers the useful block.
-    
-    Parameters
-    ----------
-    idft_len : int
-        Length of DFT.
-    tail_len : int
-        Length of tail for receiver's window.
-    rm_len : int
-        Number of sampes to skip before useful block.
-        
-    Returns
-    -------
-    rm_redudnacy_mat : sym.Matrix
-    """
-
-    rm_redudancy_mat = sym.zeros(dft_len+tail_len, rm_len).row_join(
-        sym.eye(dft_len+tail_len)
-    )
-
-    return rm_redudancy_mat
-
-
-def gen_rc_window_rx_sym(dft_len:int, tail_len:int):
-    """Method to generate the Raised Cosine window for receiver using sympy.
+def gen_overlap_and_add_matrix(dft_len:int, tail_len:int):
+    """Method to generate the ovelap and add matrix.
     
     Parameters
     ----------
     dft_len : int
-        Length of DFT.
+        Length of the DFT.
     tail_len : int
         Length of window tail.
     
     Returns
     -------
-    rc_window : sym.Matrix
-        Raised cosine window for the receiver.
+    overlap_and_add_matrix : np.ndarray
+        Matrix responsible for the overlap-and-add process.
     """
 
-    rc_fun = lambda x: sym.sin((sym.pi*x) / (2*tail_len))**2
-    rc_axis = sym.Matrix(tail_len, 1, list(range(tail_len)))
-    rc_tail = rc_axis.applyfunc(rc_fun)
-    rc_window = (
-        rc_tail.col_join(sym.ones(dft_len-tail_len, 1))
-    ).col_join(rc_tail.permute_rows(list(np.arange(tail_len-1, -1, -1))))
+    aux = int(tail_len/2)
+    row0 = np.hstack((np.zeros((aux, aux)), np.eye(aux),
+                      np.zeros((aux, dft_len-tail_len)), np.zeros((aux, aux)),
+                      np.eye(aux)))
+    row1 = np.hstack((np.zeros((dft_len-tail_len, tail_len)),
+                      np.eye(dft_len-tail_len),
+                      np.zeros((dft_len-tail_len, tail_len))))
+    row2 = np.hstack((np.eye(aux), np.zeros((aux, aux)),
+                      np.zeros((aux, dft_len-tail_len)), np.eye(aux),
+                      np.zeros((aux, aux))))
+    
+    return np.vstack((row0, row1, row2))
 
-    return rc_window
 
-
-def gen_overlap_and_add_sym(dft_len:int, tail_len:int):
-    """Method to generate the overlap and add matrix using sympy.
+def gen_circ_shift_matrix(dft_len:int, circ_shift_len:int):
+    """Method to generate the circular shift matrix.
     
     Parameters
     ----------
     dft_len : int
-        Length of DFT.
-    tail_len : int
-        Length of widnow tail.
-
+        Length of the DFT.
+    circ_shift_len : int
+        Length of the circular shift.
+    
     Returns
     -------
-    overlap_add_mat : sym.Matrix
+    circ_shift_matrix : np.ndarray
+        Matrix responsible for the circular shift.
     """
 
-    overlap_add_mat = sym.Matrix((
-        [sym.zeros(tail_len/2, tail_len/2), sym.eye(tail_len/2),
-         sym.zeros(tail_len/2, dft_len-tail_len),
-         sym.zeros(tail_len/2, tail_len/2), sym.eye(tail_len/2)],
-        [sym.zeros(dft_len-tail_len, tail_len), sym.eye(dft_len-tail_len),
-         sym.zeros(dft_len-tail_len, tail_len)],
-        [sym.eye(tail_len/2), sym.zeros(tail_len/2, tail_len/2),
-         sym.zeros(tail_len/2, dft_len-tail_len), sym.eye(tail_len/2),
-         sym.zeros(tail_len/2, tail_len/2)]
+    return np.vstack((
+        np.hstack((np.zeros((dft_len-circ_shift_len, circ_shift_len)),
+                   np.eye(dft_len-circ_shift_len))),
+        np.hstack((np.eye(circ_shift_len),
+                   np.zeros((circ_shift_len, dft_len-circ_shift_len))))
     ))
 
-    return overlap_add_mat
 
-
-def gen_circ_shift_sym(dft_len:int, shift_len:int):
-    """Method to generate circular shift matrix.
+def gen_dft_matrix(dft_len:int):
+    """Method to generate the DFT matrix.
     
     Parameters
     ----------
     dft_len : int
-        Length of DFT.
-    shift_len : int
-        Number of samples in circular shift.
-        
-    Returns
-    -------
-    circ_shift_mat : sym.Matrix
-        Matrix responsible for circular shift.
-    """
-
-    circ_shift_mat = sym.zeros(dft_len-shift_len, shift_len).row_join(
-        sym.eye(dft_len-shift_len)
-    ).col_join(sym.eye(shift_len).row_join(
-        sym.zeros(shift_len, dft_len-shift_len)
-    ))
-
-    return circ_shift_mat
-
-
-def gen_dft_sym(dft_len:int):
-    """Method to generate DFT matrix using sympy.
+        Length of the DFT.
     
-    Parameters
-    ----------
-    dft_len : int
-        Length of DFT.
-
     Returns
     -------
-    dft_mat : sym.Matrix
+    dft_mat : np.ndarray
         Matrix responsible for DFT.
     """
 
-    dft_mat = sym.Matrix(
-        dft_len, dft_len, lambda i,j: sym.exp(-sym.I*2*sym.pi*i*j/dft_len)
-    )
-
+    dft_mat = np.zeros((dft_len, dft_len), dtype=np.complex128)
+    for row_idx in range(dft_len):
+        for col_idx in range(dft_len):
+            dft_mat[row_idx, col_idx] = \
+                np.exp(-1j*2*np.pi*row_idx*col_idx/dft_len)
+            
     return dft_mat
 
 
-def gen_rm_redudancy_matrix(dft_len:int, tail_len:int, rm_len:int):
-    """Method to generate the matrix that recovers the useful block.
-    
-    Parameters
-    ----------
-    idft_len : int
-        Length of DFT.
-    tail_len : int
-        Length of tail for receiver's window.
-    rm_len : int
-        Number of sampes to skip before useful block.
-        
-    Returns
-    -------
-    rm_redudnacy_mat : sym.Matrix
-    """
+if __name__ == '__main__':
 
-    rm_redundancy_mat = np.hstack((np.zeros((dft_len+tail_len, rm_len)),
-                                   np.eye(rm_len)))
-    
-    return rm_redundancy_mat
+    print(gen_overlap_and_add_matrix(15, 8))
 
 
 # EoF

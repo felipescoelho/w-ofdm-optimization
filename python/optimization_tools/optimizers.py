@@ -7,105 +7,148 @@ Jul 23, 2023
 """
 
 
-import sympy as sym
+import numpy as np
+from numba import jit
 from ofdm_utils import (
     gen_idft_matrix, gen_rc_window_tx, gen_add_redundancy_matrix,
-    gen_rm_redundancy_matrix, gen_overlap_and_add, gen_dft_matrix,
+    gen_rm_redundancy_matrix, gen_overlap_and_add_matrix, gen_dft_matrix,
     gen_circ_shift_matrix, gen_channel_tensor
 )
+from .utils import reduce_variable_tx
 
 
 class OptimizerTx:
     """
-    A class for the optmization process
-    
+    A class for the optmization process of wtx- and CPwtx-OFDM systems.
+
+    Attributes
+    ----------
+    name : str
+        The name of the system in question 'wtx' or 'CPwtx'.
+    cp_len : int
+        The number of samples in the cyclic prefix.
+    cs_len : int
+        The number of samples in the cyclic suffix.
+    tail_len : int
+        The number of samples in the window's tails.
+    rm_len : int
+        The number of samples removed at the receiver.
+    shift_len : int
+        The number of samples in the circular shift at the receiver.
+    idft_mat : np.ndarray
+        The matrix resposible for the IDFT.
+    add_red_mat : np.ndarray
+        The matrix responsible for adding redundancy to the system.
+    rm_red_mat : np.ndarray
+        The matrix responsible for removing redundancy from the system.
+    circ_shift_mat : np.ndarray
+        The matrix responsible for the circular shift.
+    dft_mat : np.ndarray
+        The matrix responsible for the 
     """
 
-    def __init__(self, **kwargs):
+    @staticmethod
+    @jit(nopython=True)
+    def __gen_Q1(B_mat, C_mat):
+        """Method to generate Q1 using numba (which is way faster)."""
+
+        dft_len, n_samples = B_mat.shape
+        Q1_mat = np.zeros((n_samples, n_samples), dtype=np.complex128)
+        for i in range(n_samples):
+            for j in range(i+1):
+                for m in range(dft_len):
+                    logic_aux = np.ones((dft_len,), dtype=np.bool_)
+                    logic_aux[m] = 0
+                    Q1_mat[i, j] += \
+                        np.transpose(np.conj(B_mat[logic_aux, i])) \
+                        * np.conj(C_mat[i, m]) @ B_mat[logic_aux, j] \
+                        * C_mat[j, m]
+                    
+        return np.real(Q1_mat + np.transpose(Q1_mat) - np.diag(np.diag(Q1_mat)))
+
+    def __init__(self, system_design, dft_len, cp_len, tail_len):
         """Constructor method.
         
         Parameters
         ----------
         Keyword args:
-            sysmte_desing : str
+            system_desing : str
                 w-OFDM system design.
             dft_len : int
                 Length of DFT.
             cp_len : int
                 Number of samples in cyclic prefix (CP).
-            cs_len : int
-                Number of samples in cyclic suffix (CS).
             tail_len : int
                 Number of samples in window tail.
-            rm_len : int
-                Number of samples to skip before recovering useful block.
-            shift_len : int
-                Number of samples for the circular shift.
         """
 
-        self.name = kwargs['system_design']
-        self.dft_len = kwargs['dft_len']
-        self.cp_len = kwargs['cp_len']
-        self.cs_len = kwargs['cs_len']
-        self.tail_len = kwargs['tail_len']
-        if self.name == 'wtx-OFDM':
+        self.name = system_design
+        self.dft_len = dft_len
+        self.cp_len = cp_len
+        self.tail_len = tail_len
+        if self.name == 'wtx':
+            self.cs_len = self.tail_len
             self.rm_len = self.cp_len
             self.shift_len = 0
-        elif self.name == 'CPwtx-OFDM':
+        elif self.name == 'CPwtx':
+            self.cs_len = 0
             self.rm_len = self.cp_len - self.tail_len
             self.shift_len = self.tail_len
         # Set matrices:
         # Transmitter:
-        self.idft_mat = gen_idft(self.dft_len)
-        self.add_red_mat = gen_add_redundancy(self.dft_len, self.cp_len,
-                                                  self.cs_len)
+        self.idft_mat = gen_idft_matrix(self.dft_len)
+        self.add_red_mat = gen_add_redundancy_matrix(self.dft_len, self.cp_len,
+                                                     self.cs_len)
         # Receiver:
-        self.rm_red_mat = gen_rm_redundancy(self.dft_len, 0, self.rm_len)
-        self.circ_shift_mat = gen_circ_shift(self.dft_len, self.shift_len)
-        self.dft_mat = gen_dft(self.dft_len)
+        self.rm_red_mat = gen_rm_redundancy_matrix(self.dft_len, 0, self.rm_len)
+        self.overlap_add_mat = gen_overlap_and_add_matrix(self.dft_len, 0)
+        self.circ_shift_mat = gen_circ_shift_matrix(self.dft_len, self.shift_len)
+        self.dft_mat = gen_dft_matrix(self.dft_len)
+        # Variable manipulation:
+        self.reduce_var_mat = reduce_variable_tx(self.dft_len, self.cp_len,
+                                                 self.cs_len, self.tail_len)
 
-    def calculate_chann_matrices(self, channel_ir):
+    def calculate_chann_matrices(self, channel_ir:np.ndarray):
         """Method to calculate channel matrices for the system.
         
         Parameters
         ----------
         channel_ir : np.ndarray
-            Channel's impulse response.
+            Channel impulse response.
         
         Returns
         -------
-        channel_list : list
-            List with channel matrices.
+        channel_tensor : np.ndarray
+            Tensor with channel matrix, where the depth is the 3rd dim.
         """
-        channel_list = gen_channel_tensor(channel_ir, self.dft_len,
-                                              self.tail_len, 0, self.rm_len,
-                                              self.cp_len, self.cs_len)
+        channel_tensor = gen_channel_tensor(channel_ir, self.dft_len,
+                                            self.tail_len, 0, self.rm_len,
+                                            self.cp_len, self.cs_len)
         
-        return channel_list
+        return channel_tensor
 
-    def optimize_window(self, channel_list:list):
-        """Method to calculate the window optmization."""
-        mat_B = self.dft_mat*self.circ_shift_mat*self.rm_red_mat \
-            * channel_list[0]
-        mat_C = self.add_red_mat*self.idft_mat
-        mat_D = self.add_red_mat*self.circ_shift_mat*self.rm_red_mat \
-            * sum(channel_list[1:])
-        mat_Q1 = sym.Matrix(
-            self.dft_len+self.cp_len+self.cs_len,
-            self.dft_len+self.cp_len+self.cs_len,
-            lambda i, j: (mat_B[:, i].T * mat_B[:, j].C) \
-                * (mat_C[i, :] * mat_C[j, :].H)
-        )
-        aux_Q2 = mat_D * mat_D.H
-        mat_Q2 = sym.Matrix(
-            self.dft_len+self.cp_len+self.cs_len,
-            self.dft_len+self.cp_len+self.cs_len,
-            lambda i, j: aux_Q2[i, j] if i == j else 0
-        )
+    def gen_hessian(self, channel_tensor:np.ndarray):
+        """Method to calculate the matrices necessary for the Hessian.
+        
+        Parameters
+        ----------
+        channel_tensor : np.ndarray
+        
+        Returns
+        -------
+        H_mat : np.ndarray
+            Hessian matrix for the optimization.
+        """
 
-        mat_H = 2*(mat_Q1+mat_Q2)
+        B_mat = self.dft_mat@self.circ_shift_mat@self.overlap_add_mat \
+            @ self.rm_red_mat@channel_tensor[:, :, 0]
+        C_mat = self.add_red_mat@self.idft_mat
+        D_mat = self.add_red_mat@self.circ_shift_mat@self.overlap_add_mat \
+            @ self.rm_red_mat@np.sum(channel_tensor[:, :, 1:], 2)
+        Q1_mat = self.__gen_Q1(B_mat, C_mat)
+        Q2_mat = np.real(np.diag(np.diag(D_mat @ np.transpose(D_mat))))
 
-        print(mat_H)
+        return 2*(Q1_mat+Q2_mat)
 
 
 # EoF

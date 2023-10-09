@@ -8,7 +8,7 @@ Oct 2, 2023
 
 
 import numpy as np
-from rayleigh_fading import rayleigh_fading_gmeds_1
+from .rayleigh_fading import rayleigh_fading_gmeds_1
 
 
 CHANNEL_ITUR = {'vehicularA': {

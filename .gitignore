@@ -16,4 +16,4 @@ __pycache__/
 *.eps
 *.fig
 *.zip
-
+*.npy

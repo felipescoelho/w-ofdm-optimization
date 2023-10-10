@@ -342,9 +342,108 @@ def nfi_pd_pf_cqp(H:np.ndarray, p:np.ndarray, A:np.ndarray, b:np.ndarray,
         mu = mu + alpha_k*delta_mu
         gap = x_sol.T @ mu
         print(gap)
-        if n_iter == 20:
+        if n_iter == 40:
             return x_sol, 10, n_iter
         
+    y_sol = (.5*x_sol.T@H@x_sol) + (x_sol.T@p)
+
+    return x_sol, y_sol, n_iter
+
+
+def nfi_ip_mlc_cqp(H:np.ndarray, p:np.ndarray, A:np.ndarray, b:np.ndarray,
+                   init_point=None, rho=None, epsilon=None):
+    """Nonfeasible-initialization interior-point algorithm for mixed LC
+    problems.
+
+    From Algorithm 13.4 in Antoniou, A. and Lu W. "Practical
+    Optimization: Algorithms and Engineering Applications", 2nd Ed.,
+    Springer, 2021
+    
+    Parameters
+    ----------
+    H : np.ndarray
+        (Positive semidefinite) Hessian matrix of the optimization
+        problem.
+    p : np.ndarray
+        Linear term of cost function.
+    A : np.ndarray
+        Linear equality constraint matrix.
+    b : np.ndarray
+        Values for the linear equality.
+    init_point : tuple
+        Initial point 3 element tuple, with:
+            x0 : np.ndarray
+                Initial point > 0.
+            lambda0 : np.ndarray
+                Lagrange multiplier (eq. constraints).
+            mu0 : np.ndarray
+                Lagranfe multiplier > 0 (active ineq. constraints).
+    rho : float
+        A parameter to calculate of tau's value, with
+        rho >= sqrt(len(x)) (Eq. 13.36).
+    epsilon : float
+        Tolerance for duality gap, 1e-9 <= epsilon <= 1e-6 is good
+        practice.
+
+    Returns
+    -------
+    x_sol : np.ndarray
+        Solution vector.
+    y_sol : float
+        Cost function value at the solution vector.
+    n_iter : int
+        Number of iterations before stop.
+    """
+
+    # Initialization:
+    n_rows, n_cols = A.shape
+    if init_point is None:
+        x0 = .5*np.ones((n_cols, 1), dtype=np.float64)
+        lamb0 = .5*np.ones((n_rows, 1), dtype=np.float64)
+        mu0 = .5*np.ones((n_cols, 1), dtype=np.float64)
+    else:
+        x0, lamb0, mu0 = init_point
+    if not p.any():  # Allocate 0's if input is empty vector.
+        p = np.zeros((n_cols, 1), dtype=np.float64)
+    if rho is None:
+        rho = n_cols + 20*np.sqrt(n_cols)
+    if epsilon is None:
+        epsilon = 1e-5
+    den = n_cols + rho
+    x_sol = x0.copy()
+    lamb = lamb0.copy()
+    mu = mu0.copy()
+    gap = x_sol.T@mu
+    n_iter = 0
+    I = np.eye(n_cols)
+    Z = np.zeros((n_rows, n_cols))
+    Z2 = np.zeros((n_rows, n_rows))
+    e = np.ones((n_cols, 1))
+    while gap > epsilon:
+        n_iter += 1
+        tau = gap/den
+        r1 = H @ x_sol + A.T @ lamb - mu + p
+        r2 = A@x_sol + Z2@lamb - b
+        C = np.vstack((np.hstack((-H, -A.T, I)),
+                       np.hstack((-A, Z2, Z)),
+                       np.hstack((np.diagflat(mu), Z.T, np.diagflat(x_sol)))))
+        delta_w = np.linalg.inv(C)@np.vstack((r1, r2, tau*e-x_sol*mu))
+        delta_x = delta_w[0:n_cols]
+        delta_lamb = delta_w[n_cols:n_cols+n_rows]
+        delta_mu = delta_w[n_cols+n_rows:2*n_cols+n_rows]
+        alpha_k = (1 - 1e-6) * np.min(np.array((
+            np.min(-x_sol.flatten()[delta_x.flatten() < 0]
+                   / delta_x.flatten()[delta_x.flatten() < 0], initial=1e12),
+            np.min(-mu.flatten()[delta_mu.flatten() < 0]
+                   / delta_mu.flatten()[delta_mu.flatten() < 0], initial=1e12)
+        )))
+        x_sol = x_sol + alpha_k*delta_x
+        lamb = lamb + alpha_k*delta_lamb
+        mu = mu + alpha_k*delta_mu
+        gap = x_sol.T @ mu
+        print(gap)
+        if n_iter == 40:
+            return x_sol, 10, n_iter
     y_sol = (.5*x_sol.T@H@x_sol) + (x_sol.T@p)
 
     return x_sol, y_sol, n_iter

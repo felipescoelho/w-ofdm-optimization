@@ -11,7 +11,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import os
 from multiprocessing import cpu_count, Pool
-from tqdm import tqdm
+from scipy.linalg import issymmetric
 from optimization_tools import OptimizerTx
 from channel_model import gen_chan
 
@@ -41,9 +41,19 @@ def parallel_optimization(data:tuple):
         opt_model = OptimizerTx(system_design, dft_len, cp_len, tail_len)
         # print(opt_model.overlap_add_mat)
         chann_ten = opt_model.calculate_chann_matrices(channel_avg)
-        H_mat = opt_model.gen_hessian(chann_ten)
+        reg = 1e-1
+        # H_mat = (1-reg)*opt_model.gen_hessian(chann_ten) + reg*np.eye(9)
+        H_mat = opt_model.gen_hessian(chann_ten) + reg*np.diagflat(np.linspace(
+            1, 2, 9
+        ))
         print(np.linalg.eigvals(H_mat))
-        print(H_mat)
+        print(np.linalg.cond(H_mat))
+        if not issymmetric(H_mat):
+            print('Not symmetric!')
+            H_mat = .5 * (H_mat + H_mat.T)
+            print(np.linalg.eigvals(H_mat))
+            print(np.linalg.cond(H_mat))
+
         opt_model.optimize(H_mat)
 
     return 'ok'
@@ -110,9 +120,6 @@ if __name__ == '__main__':
         if args.parallel:
             with Pool(cpu_count()) as pool:
                 a = pool.map(parallel_optimization, data_list)
-                # a = [pool.apply(parallel_optimization, args=data) for
-                #      data in data_list]
-            
         else:
             a = [parallel_optimization(data) for data in data_list]
             print([b for b in a])

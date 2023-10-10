@@ -33,7 +33,8 @@ def parallel_optimization(data:tuple):
     
     system_design, dft_len, cp_len = data
     channel = np.load('./channels/vehicularA.npy')
-    channel_avg = np.mean(channel, 1)
+    # channel_avg = np.mean(channel, 1)
+    channel_avg = channel[:, 0]
     if system_design in ['wtx', 'CPwtx']:
         # print(channel_avg)
         tail_len = 8
@@ -42,7 +43,8 @@ def parallel_optimization(data:tuple):
         chann_ten = opt_model.calculate_chann_matrices(channel_avg)
         H_mat = opt_model.gen_hessian(chann_ten)
         print(np.linalg.eigvals(H_mat))
-        # print(B_mat)
+        print(H_mat)
+        opt_model.optimize(H_mat)
 
     return 'ok'
 

@@ -10,11 +10,12 @@ Jul 23, 2023
 import numpy as np
 from numba import jit
 from ofdm_utils import (
-    gen_idft_matrix, gen_rc_window_tx, gen_add_redundancy_matrix,
-    gen_rm_redundancy_matrix, gen_overlap_and_add_matrix, gen_dft_matrix,
-    gen_circ_shift_matrix, gen_channel_tensor
+    gen_idft_matrix, gen_add_redundancy_matrix, gen_rm_redundancy_matrix,
+    gen_overlap_and_add_matrix, gen_dft_matrix, gen_circ_shift_matrix,
+    gen_channel_tensor
 )
-from .utils import reduce_variable_tx
+from .utils import reduce_variable_tx, gen_constraints_tx
+from .quadratic_programming import quadratic_solver
 
 
 class OptimizerTx:
@@ -148,7 +149,21 @@ class OptimizerTx:
         Q1_mat = self.__gen_Q1(B_mat, C_mat)
         Q2_mat = np.real(np.diag(np.diag(D_mat @ np.transpose(D_mat))))
 
-        return 2*(Q1_mat+Q2_mat)
+        return np.transpose(self.reduce_var_mat) @ (2*(Q1_mat + Q2_mat)) \
+            @ self.reduce_var_mat
+
+    def optimize(self, H_mat):
+        """
+        Method to run optimization using our optimization algorithms.
+        """
+
+        A, b, C, d = gen_constraints_tx(self.tail_len)
+
+        p = np.zeros((1+self.tail_len, 1), dtype=np.float64)
+        x, n_iter = quadratic_solver(H_mat, p, A, b, C, d, epsilon=1e-9)
+
+        # print(x, n_iter)
+
 
 
 # EoF

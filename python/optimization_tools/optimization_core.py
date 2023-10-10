@@ -12,7 +12,7 @@ from numba import jit
 
 
 def eliminate_equality(H:np.ndarray, p:np.ndarray, A:np.ndarray,
-                       b:np.ndarray):
+                       b:np.ndarray, C=None, d=None):
     """Method to eliminate the equality constraints from the convex
     optmization problem. Following Eq. (13.6a) from Antoniou, A. and
     Lu W. "Practical Optimization: Algorithms and Engineering
@@ -27,22 +27,30 @@ def eliminate_equality(H:np.ndarray, p:np.ndarray, A:np.ndarray,
     
     Parameters
     ----------
-    H : np.matrix
+    H : np.ndarray
         (Positive semidefinite) Hessian matrix of the optimization
         problem.
-    p : np.matrix
+    p : np.ndarray
         Input vector.
-    A : np.matrix
+    A : np.ndarray
         Linear equality constraint matrix (full row rank).
-    b : np.matrix
+    b : np.ndarray
         Input vector.
+    C : np.ndarray (default=None)
+        Linear inequality constraint matrix.
+    d : np.ndarray (default=None)
+        Values for linear inequality constraints.
     
     Returns
     -------
-    hat_H : np.matrix
+    hat_H : np.ndarray
         Converted Hessian matrix.
-    hat_p : np.matrix
+    hat_p : np.ndarray
         Converted input vector.
+    hat_C : np.ndarray
+        Converted linear inequality constraints.
+    hat_D : np.ndarray
+        Converted values for linear inequality contraints.
     """
 
     n_rows, n_cols = A.shape
@@ -57,7 +65,24 @@ def eliminate_equality(H:np.ndarray, p:np.ndarray, A:np.ndarray,
         np.linalg.inv(R).T, b
     ))) + p))
 
-    return hat_H, hat_p
+    if C is None and d is None:
+        
+        return hat_H, hat_p
+    
+    hat_C = C @ Q_2
+    hat_d = d - C@Q_1@np.linalg.inv(R).T @ b
+
+    return hat_H, hat_p, hat_C, hat_d
+
+
+def recover_variable_eq_trans(x_sol, A, b):
+    n_rows, n_cols = A.shape
+    Q, hat_R = np.linalg.qr(A.T, mode='complete')
+    R = hat_R[:n_rows, 0:n_rows]
+    Q_1 = Q[0:n_cols, 0:n_rows]
+    Q_2 = Q[0:n_cols, n_rows:n_cols]
+
+    return Q_2@x_sol + Q_1@np.linalg.inv(R).T @ b
 
 
 def convert_inequality(H:np.ndarray, p:np.ndarray, A:np.ndarray):
@@ -106,7 +131,7 @@ def convert_inequality(H:np.ndarray, p:np.ndarray, A:np.ndarray):
     return hat_H, hat_p, hat_A
 
 
-def recover_variable(hat_x:np.ndarray, var_len:int):
+def recover_variable_inq_trans(hat_x:np.ndarray, var_len:int):
     """Method to recover solution point from solution using slack
     variables.
     
@@ -274,9 +299,9 @@ def nfi_pd_pf_cqp(H:np.ndarray, p:np.ndarray, A:np.ndarray, b:np.ndarray,
     # Initialization:
     n_rows, n_cols = A.shape
     if init_point is None:
-        x0 = np.ones((n_cols, 1), dtype=np.float64)
-        lamb0 = np.ones((n_rows, 1), dtype=np.float64)
-        mu0 = np.ones((n_cols, 1), dtype=np.float64)
+        x0 = .5*np.ones((n_cols, 1), dtype=np.float64)
+        lamb0 = .5*np.ones((n_rows, 1), dtype=np.float64)
+        mu0 = .5*np.ones((n_cols, 1), dtype=np.float64)
     else:
         x0, lamb0, mu0 = init_point
     if not p.any():  # Allocate 0's if input is empty vector.
@@ -308,14 +333,18 @@ def nfi_pd_pf_cqp(H:np.ndarray, p:np.ndarray, A:np.ndarray, b:np.ndarray,
         delta_mu = H@delta_x - A.T@delta_lamb + r_d
         alpha_k = (1 - 1e-6) * np.min(np.array((
             np.min(-x_sol.flatten()[delta_x.flatten() < 0]
-                   / delta_x.flatten()[delta_x.flatten() < 0]),
+                   / delta_x.flatten()[delta_x.flatten() < 0], initial=1e12),
             np.min(-mu.flatten()[delta_mu.flatten() < 0]
-                   / delta_mu.flatten()[delta_mu.flatten() < 0])
+                   / delta_mu.flatten()[delta_mu.flatten() < 0], initial=1e12)
         )))
         x_sol = x_sol + alpha_k*delta_x
         lamb = lamb + alpha_k*delta_lamb
         mu = mu + alpha_k*delta_mu
         gap = x_sol.T @ mu
+        print(gap)
+        if n_iter == 20:
+            return x_sol, 10, n_iter
+        
     y_sol = (.5*x_sol.T@H@x_sol) + (x_sol.T@p)
 
     return x_sol, y_sol, n_iter

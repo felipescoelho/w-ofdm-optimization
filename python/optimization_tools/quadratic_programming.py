@@ -8,8 +8,9 @@ Oct 6, 2023
 
 
 import numpy as np
-from optimization_core import (eliminate_equality, convert_inequality,
-                               recover_variable, nfi_pd_pf_cqp)
+from .optimization_core import (eliminate_equality, convert_inequality,
+                               recover_variable_inq_trans, nfi_pd_pf_cqp,
+                               recover_variable_eq_trans)
 
 
 def quadratic_solver(H:np.ndarray, p:np.ndarray, A:np.ndarray, b:np.ndarray,
@@ -53,11 +54,16 @@ def quadratic_solver(H:np.ndarray, p:np.ndarray, A:np.ndarray, b:np.ndarray,
         Number of iterations.
     """
 
-    H_hat0, p_hat0 = eliminate_equality(H, p, A, b)
-    H_hat, p_hat, C_hat = convert_inequality(H_hat0, p_hat0, C)
-    x_sol_hat, _, n_iter = nfi_pd_pf_cqp(H_hat, p_hat, C_hat, d, None, rho,
+    H_hat0, p_hat0, C_hat0, d_hat = eliminate_equality(H, p, A, b, C, d)
+    H_hat, p_hat, C_hat = convert_inequality(H_hat0, p_hat0, C_hat0)
+    x_sol_hat, _, n_iter = nfi_pd_pf_cqp(H_hat, p_hat, C_hat, d_hat, None, rho,
                                          epsilon)
-    x_sol = recover_variable(x_sol_hat, H.shape[0])
+    
+    x_sol0 = recover_variable_inq_trans(x_sol_hat, H_hat0.shape[0])
+    x_sol = recover_variable_eq_trans(x_sol0, A, b)
+
+    print(x_sol)
+    print(n_iter)
 
     return x_sol, n_iter
 

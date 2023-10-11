@@ -9,6 +9,7 @@ Jul 23, 2023
 
 import numpy as np
 from numba import jit
+from scipy.linalg import issymmetric
 from ofdm_utils import (
     gen_idft_matrix, gen_add_redundancy_matrix, gen_rm_redundancy_matrix,
     gen_overlap_and_add_matrix, gen_dft_matrix, gen_circ_shift_matrix,
@@ -16,6 +17,53 @@ from ofdm_utils import (
 )
 from .utils import reduce_variable_tx, gen_constraints_tx
 from .quadratic_programming import quadratic_solver
+
+
+def optimization_fun(data:tuple):
+    """Method to perform the optimization process.
+    
+    Parameters
+    ----------
+    data : tuple
+        Tuple containing (system_design, dft_len, cp_len), where
+            system_desing : str
+                The w-OFDM system design.
+            dft_len : int
+                Number of bins in the DFT.
+            cp_len : int
+                Length of the cyclic prefix.
+    """
+    
+    system_design, dft_len, cp_len, channel_path = data
+    channel = np.load(channel_path)
+    channel_avg = np.mean(channel, 1)
+    if system_design in ['wtx', 'CPwtx']:
+        tail_tx = 8
+        opt_model = OptimizerTx(system_design, dft_len, cp_len, tail_tx)
+        chann_ten = opt_model.calculate_chann_matrices(channel_avg)
+        reg = 1e-1
+        # H_mat = (1-reg)*opt_model.gen_hessian(chann_ten) + reg*np.eye(9)
+        H_mat = opt_model.gen_hessian(chann_ten) + reg*np.diagflat(np.linspace(
+            1, 2, 9
+        ))
+        # print(np.linalg.eigvals(H_mat))
+        # print(np.linalg.cond(H_mat))
+        if not issymmetric(H_mat):
+            print('Not symmetric!')
+            H_mat = .5 * (H_mat + H_mat.T)
+            # print(np.linalg.eigvals(H_mat))
+            # print(np.linalg.cond(H_mat))
+    elif system_design in ['wrx', 'CPwrx']:
+        tail_len = 10
+        opt_model = OptimizerRx(system_design, dft_len, cp_len, tail_len)
+    elif system_design in ['CPW', 'WOLA']:
+        opt_model = OptimizerTxRx()
+
+    x, _ = opt_model.optimize(H_mat)
+    np.save(f'./optimized_windows/{system_design}_{cp_len}.npy', x)
+
+    return 'ok'
+
 
 
 class OptimizerTx:
@@ -72,15 +120,14 @@ class OptimizerTx:
         
         Parameters
         ----------
-        Keyword args:
-            system_desing : str
-                w-OFDM system design.
-            dft_len : int
-                Length of DFT.
-            cp_len : int
-                Number of samples in cyclic prefix (CP).
-            tail_len : int
-                Number of samples in window tail.
+        system_desing : str
+            w-OFDM system design.
+        dft_len : int
+            Length of DFT.
+        cp_len : int
+            Number of samples in cyclic prefix (CP).
+        tail_len : int
+            Number of samples in window tail.
         """
 
         self.name = system_design
@@ -162,9 +209,15 @@ class OptimizerTx:
         p = np.zeros((1+self.tail_len, 1), dtype=np.float64)
         x, n_iter = quadratic_solver(H_mat, p, A, b, C, d, epsilon=1e-9)
 
-        # print(x, n_iter)
+        return x, n_iter
 
 
+class OptimizerRx:
+    """"""
+
+
+class OptimizerTxRx:
+    """"""
 
 # EoF
 

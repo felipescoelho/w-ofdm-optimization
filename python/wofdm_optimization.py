@@ -11,52 +11,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 import os
 from multiprocessing import cpu_count, Pool
-from scipy.linalg import issymmetric
-from optimization_tools import OptimizerTx
+from optimization_tools import optimization_fun
 from channel_model import gen_chan
-
-
-def parallel_optimization(data:tuple):
-    """Method to parallellize the optimization process.
-    
-    Parameters
-    ----------
-    data : tuple
-        Tuple containing (system_design, dft_len, cp_len), where
-            system_desing : str
-                The w-OFDM system design.
-            dft_len : int
-                Number of bins in the DFT.
-            cp_len : int
-                Length of the cyclic prefix.
-    """
-    
-    system_design, dft_len, cp_len = data
-    channel = np.load('./channels/vehicularA.npy')
-    # channel_avg = np.mean(channel, 1)
-    channel_avg = channel[:, 0]
-    if system_design in ['wtx', 'CPwtx']:
-        # print(channel_avg)
-        tail_len = 8
-        opt_model = OptimizerTx(system_design, dft_len, cp_len, tail_len)
-        # print(opt_model.overlap_add_mat)
-        chann_ten = opt_model.calculate_chann_matrices(channel_avg)
-        reg = 1e-1
-        # H_mat = (1-reg)*opt_model.gen_hessian(chann_ten) + reg*np.eye(9)
-        H_mat = opt_model.gen_hessian(chann_ten) + reg*np.diagflat(np.linspace(
-            1, 2, 9
-        ))
-        print(np.linalg.eigvals(H_mat))
-        print(np.linalg.cond(H_mat))
-        if not issymmetric(H_mat):
-            print('Not symmetric!')
-            H_mat = .5 * (H_mat + H_mat.T)
-            print(np.linalg.eigvals(H_mat))
-            print(np.linalg.cond(H_mat))
-
-        opt_model.optimize(H_mat)
-
-    return 'ok'
+from ofdm_utils import simulation_fun
 
 
 def arg_parser():
@@ -73,6 +30,14 @@ def arg_parser():
                         help='w-OFDM systems that will be tested.')
     parser.add_argument('--parallel', action=argparse.BooleanOptionalAction,
                         help='Add the argument parallel to run processes in parallel.')
+    parser.add_argument('--channel_path', type=str, default='channels',
+                        help='Path to folder with channel. (save or load)')
+    parser.add_argument('--window_path', type=str, default='optimized_windows',
+                        help='Path to folder with optimized windows.')
+    parser.add_argument('--channel_standard', type=str, default='vehicularA',
+                        help='Channel model standard.')
+    parser.add_argument('-mc', '--monte_carlo', type=int, default=1,
+                        help='Number of repetitions in Monte Carlo process.')
 
     return parser
 
@@ -81,11 +46,9 @@ if __name__ == '__main__':
 
     parser = arg_parser()
     args = parser.parse_args()
-
-    channel_data_folder = './channels/'
-    channel_standard = 'vehicularA'
+    channel_data_folder = args.channel_path
+    channel_standard = args.channel_standard
     channel_path = os.path.join(channel_data_folder, channel_standard+'.npy')
-
     if args.mode == 'gen_chan':
         from scipy.constants import speed_of_light
         # Simulation settings:
@@ -112,32 +75,34 @@ if __name__ == '__main__':
         np.save(channel_path, channel_tdl, fix_imports=False)
 
     elif args.mode == 'run_opt':
+        os.makedirs(args.window_path, exist_ok=True)
         # Simulation settings:
         dft_len = 256
         cp_list = [int(cp_len) for cp_len in args.cp_length.split(',')]
         sys_list = args.systems.split(',')
-        data_list = [(sys, dft_len, cp) for sys in sys_list for cp in cp_list]
+        data_list = [(sys, dft_len, cp, channel_path) for sys in sys_list for cp in cp_list]
         if args.parallel:
             with Pool(cpu_count()) as pool:
-                a = pool.map(parallel_optimization, data_list)
+                a = pool.map(optimization_fun, data_list)
         else:
-            a = [parallel_optimization(data) for data in data_list]
-            print([b for b in a])
+            a = [optimization_fun(data) for data in data_list]
     elif args.mode == 'run_sim':
-        pass
+        # Simulation settings:
+        dft_len = 256
+        cp_list = [int(cp_len) for cp_len in args.cp_length.split(',')]
+        sys_list = args.systems.split(',')
+        tail_tx_fun = lambda x,y: x if y in ['CPW', 'WOLA', 'CPwtx', 'wtx'] else 0
+        tail_rx_fun = lambda x,y: x if y in ['CPW', 'WOLA', 'CPwrx', 'wrx'] else 0
+        data_list = [(sys, dft_len, cp, tail_tx_fun(8, sys), tail_rx_fun(10, sys),
+                      channel_path, args.window_path)
+                     for sys in sys_list for cp in cp_list]
+        if args.parallel:
+            with Pool(cpu_count()) as pool:
+                pool.map(simulation_fun, data_list)
+        else:
+            [simulation_fun(data) for data in data_list]
     else:
         print('Mode is not defined, be sure to use gen_chan, run_opt, or run_sim.')
 
-    # dft_len = 92
-    # cp_len = 10
-    # cs_len = 8
-    # tail_len = 8
 
-    # kwargs = {'system_design': 'wtx-OFDM', 'cp_len': cp_len, 'cs_len': cs_len,
-    #           'dft_len': dft_len, 'tail_len': tail_len, 'rm_len': 20,
-    #           'shift_len': 0}
-    
-    # wtx = OptimizerTx(**kwargs)
-    # chan = np.random.randn(21) + 1j*np.random.randn(21)
-    # test = wtx.calculate_chann_matrices(chan)
-    # wtx.optimize_window(test)
+# EoF

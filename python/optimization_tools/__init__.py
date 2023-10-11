@@ -5,10 +5,10 @@ Jul 23, 2023
 """
 
 
-__all__ = ['OptimizerTx']
+__all__ = ['optimization_fun']
 
 
-from .optimizers import OptimizerTx
+from .optimizers import optimization_fun
 
 
 # EoF

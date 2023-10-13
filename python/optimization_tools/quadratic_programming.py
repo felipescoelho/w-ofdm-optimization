@@ -67,9 +67,6 @@ def quadratic_solver(H:np.ndarray, p:np.ndarray, A:np.ndarray, b:np.ndarray,
     x_sol0 = recover_variable_inq_trans(x_sol_hat, H_hat0.shape[0])
     x_sol = recover_variable_eq_trans(x_sol0, A, b)
 
-    # print(x_sol)
-    # print(n_iter)
-
     return x_sol, n_iter
 
 

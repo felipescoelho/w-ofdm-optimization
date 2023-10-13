@@ -41,7 +41,7 @@ def optimization_fun(data:tuple):
         tail_tx = 8
         opt_model = OptimizerTx(system_design, dft_len, cp_len, tail_tx)
         chann_ten = opt_model.calculate_chann_matrices(channel_avg)
-        reg = 1e-1
+        reg = 1e-4
         # H_mat = (1-reg)*opt_model.gen_hessian(chann_ten) + reg*np.eye(9)
         H_mat = opt_model.gen_hessian(chann_ten) + reg*np.diagflat(np.linspace(
             1, 2, 9
@@ -60,6 +60,7 @@ def optimization_fun(data:tuple):
         opt_model = OptimizerTxRx()
 
     x, _ = opt_model.optimize(H_mat)
+    print(x)
     np.save(f'./optimized_windows/{system_design}_{cp_len}.npy', x)
 
     return 'ok'

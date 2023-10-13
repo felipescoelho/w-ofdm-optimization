@@ -11,7 +11,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 import os
 from multiprocessing import cpu_count, Pool
-from optimization_tools import optimization_fun
 from channel_model import gen_chan
 from ofdm_utils import simulation_fun
 
@@ -38,6 +37,10 @@ def arg_parser():
                         help='Channel model standard.')
     parser.add_argument('-mc', '--monte_carlo', type=int, default=1,
                         help='Number of repetitions in Monte Carlo process.')
+    parser.add_argument('--snr', type=str, default='-21,51,3',
+                        help='SNR for the simulation ([start, ]stop, [step).')
+    parser.add_argument('--no_symbols', type=int, default=16,
+                        help='Number of symbols in a frame.')
 
     return parser
 
@@ -75,12 +78,14 @@ if __name__ == '__main__':
         np.save(channel_path, channel_tdl, fix_imports=False)
 
     elif args.mode == 'run_opt':
+        from optimization_tools import optimization_fun
         os.makedirs(args.window_path, exist_ok=True)
         # Simulation settings:
         dft_len = 256
         cp_list = [int(cp_len) for cp_len in args.cp_length.split(',')]
         sys_list = args.systems.split(',')
-        data_list = [(sys, dft_len, cp, channel_path) for sys in sys_list for cp in cp_list]
+        data_list = [(sys, dft_len, cp, channel_path) for sys in sys_list for
+                     cp in cp_list]
         if args.parallel:
             with Pool(cpu_count()) as pool:
                 a = pool.map(optimization_fun, data_list)
@@ -91,10 +96,12 @@ if __name__ == '__main__':
         dft_len = 256
         cp_list = [int(cp_len) for cp_len in args.cp_length.split(',')]
         sys_list = args.systems.split(',')
+        snr_arr = np.arange(*[int(val) for val in args.snr.split(',')])
         tail_tx_fun = lambda x,y: x if y in ['CPW', 'WOLA', 'CPwtx', 'wtx'] else 0
         tail_rx_fun = lambda x,y: x if y in ['CPW', 'WOLA', 'CPwrx', 'wrx'] else 0
         data_list = [(sys, dft_len, cp, tail_tx_fun(8, sys), tail_rx_fun(10, sys),
-                      channel_path, args.window_path)
+                      channel_path, args.window_path, args.monte_carlo,
+                      snr_arr, args.no_symbols)
                      for sys in sys_list for cp in cp_list]
         if args.parallel:
             with Pool(cpu_count()) as pool:

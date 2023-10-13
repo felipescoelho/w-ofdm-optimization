@@ -15,6 +15,7 @@ from .transmitter import (gen_add_redundancy_matrix, gen_idft_matrix,
 from .receiver import (gen_circ_shift_matrix, gen_dft_matrix,
                        gen_overlap_and_add_matrix, gen_rc_window_rx,
                        gen_rm_redundancy_matrix)
+from optimization_tools import reduce_variable_tx, reduce_variable_rx
 
 
 def simulation_fun(data:tuple):
@@ -39,29 +40,30 @@ def simulation_fun(data:tuple):
                 Path to load windows.
     """
 
-    system_design, dft_len, cp_len, tail_tx, tail_rx, channel_path, window_path = \
-        data
+    system_design, dft_len, cp_len, tail_tx, tail_rx = data[0:5]
+    channel_path, window_path, ensemble, snr_arr, no_symbols = data[5:]
+
     window_file_path = os.path.join(
         window_path, f'{system_design}_{cp_len}.npy'
     )
     channel_models = np.load(channel_path)
     if system_design in ['WOLA', 'CPW']:
         win_tail_tx, win_tail_rx = np.load(window_file_path)
-        cs_len = int(tail_tx + tail_rx/2) if system_design is 'WOLA' else tail_tx
+        cs_len = int(tail_tx + tail_rx/2) if system_design == 'WOLA' else tail_tx
     elif system_design in ['wtx', 'CPwtx']:
         win_tail_tx = np.load(window_file_path)
-        cs_len = tail_tx if system_design is 'wtx' else 0
+        win_tail_rx = np.array([1], ndmin=2)
+        cs_len = tail_tx if system_design == 'wtx' else 0
     elif system_design in ['wrx', 'CPwrx']:
         win_tail_rx = np.load(window_file_path)
-        cs_len = int(tail_rx/2) if system_design is 'wrx' else 0
-    win_tx = np.diag(np.hstack((
-        win_tail_tx, np.ones((int(dft_len+cp_len+cs_len-2*tail_tx),)),
-        win_tail_tx[::-1]
-    )))
-    win_rx = np.diag(np.hstack((win_tail_rx, np.ones((int(dft_len-(tail_rx/2)),)),
-                                win_tail_rx[::-1])))
+        win_tail_tx = np.array([1], ndmin=1)
+        cs_len = int(tail_rx/2) if system_design == 'wrx' else 0
+    win_tx = np.diagflat(reduce_variable_tx(dft_len, cp_len, cs_len,
+                                            tail_tx)@win_tail_tx)
+    win_rx = np.diagflat(reduce_variable_rx(dft_len, tail_rx)@win_tail_rx)
     sim_model = wOFDMSystem(system_design, dft_len, cp_len, tail_tx, tail_rx)
-    sim_model.run_simulation(channel_models, win_tx, win_rx, ensemble)
+    sim_model.run_simulation(channel_models, win_tx, win_rx, ensemble, snr_arr,
+                             no_symbols)
 
 
 class wOFDMSystem:
@@ -77,7 +79,7 @@ class wOFDMSystem:
     @jit(nopython=True)
     def __run_sim_mc(tx_mat:np.ndarray, rx_mat:np.ndarray, no_symbols:int,
                      channel_models:np.ndarray, ensemble:int, snr_arr:float,
-                     tail_tx_len:int, ser=True):
+                     tail_tx_len:int, ser_flag=True):
         """Method to run simulation using numba.
 
         In this simulation, we transmit a certain number of w-OFDM
@@ -101,7 +103,7 @@ class wOFDMSystem:
             Number of repetitions in Monte Carlo process.
         snr_arr : np.ndarray
             Signal to noise ratio in dB.
-        ser : bool (default=True)
+        ser_flag : bool (default=True)
             Symbol error rate flag, if true we evaluate the SER and not
             the BER (bit error rate).
         """
@@ -147,7 +149,7 @@ class wOFDMSystem:
 
             """
             n_rows, n_cols = x.shape
-            y = np.zeros((n_rows, n_cols))
+            y = np.zeros((n_rows, n_cols), dtype=np.complex128)
             for i in range(n_rows):
                 for j in range(n_cols):
                     min_idx = np.argmin(np.abs(symbols - x[i, j]))
@@ -156,13 +158,13 @@ class wOFDMSystem:
             return y
         
         n_elements = len(snr_arr)
-        ser = np.zeros((n_elements, 1), dtype=np.float64)
+        ser = np.zeros((n_elements,), dtype=np.float64)
         for idx, snr in enumerate(snr_arr):
             result = 0
             for ch_idx in range(channel_models.shape[1]):
                 result_mc = 0
                 for _ in range(ensemble):
-                    if ser:
+                    if ser_flag:
                         symbols = np.array((-3-3j, -3-1j, -3+1j, -3+3j, -1-3j,
                                             -1-1j, -1+1j, -1+3j, 1-3j, 1-1j,
                                             1+1j, 1+3j, 3-3j, 3-1j, 3+1j,
@@ -172,27 +174,32 @@ class wOFDMSystem:
                             replace=True
                         )
                         frame_tx = (tx_mat @ signal_digmod).T
-                        # overlap-and-add -> serialize -> convolution + noise
+                        # overlap-and-add -> serialize
                         signal_ov = frame_tx[:, tail_tx_len:]
                         signal_ov[:-1, -tail_tx_len:] = \
                             frame_tx[1:, :tail_tx_len] \
                             + frame_tx[:-1, -tail_tx_len:]
-                        signal_tx = np.hstack((frame_tx[0, :tail_tx_len].T,
-                                               (signal_ov.T).flatten()))
-                        signal_rx = awgn(np.convolve(channel_models[:, ch_idx],
-                                                     signal_tx, 'valid'), snr)
-                        # parallelize -> preprocess -> recover
-                        frame_rx = signal_rx.reshape((rx_mat.shape[1],
-                                                      no_symbols))
-                        signal_preproc = rx_mat @ frame_rx
-                        channel_est = signal_preproc[0, :]/signal_digmod[0, :]
-                        recovered_signal = signal_preproc[1:, :]/np.repeat(
-                            channel_est, no_symbols-1, axis=0
+                        signal_tx = np.hstack((frame_tx[0, :tail_tx_len],
+                                               signal_ov.flatten()))
+                        # Convolution 'valid' + noise
+                        channel_model = channel_models[:, ch_idx]
+                        signal_conv = np.convolve(channel_model, signal_tx)
+                        signal_rx = awgn(
+                            signal_conv[:-(len(channel_model)+tail_tx_len-1)], snr
                         )
+                        # parallelize -> preprocess -> recover
+                        frame_rx = signal_rx.reshape((no_symbols,
+                                                      rx_mat.shape[1]))
+                        signal_preproc = rx_mat @ frame_rx.T
+                        channel_est = signal_preproc[:, 0]/signal_digmod[:, 0]
+                        channel_est_mat = np.repeat(
+                            channel_est, no_symbols-1
+                        ).reshape((tx_mat.shape[1], no_symbols-1))
+                        recovered_signal = signal_preproc[:, 1:]/channel_est_mat
                         symbols_est = decision(recovered_signal, symbols)
-                        result_mc += np.sum(symbols_est.T != signal_digmod[:, 1:])
+                        result_mc += np.mean((symbols_est != signal_digmod[:, 1:]))
                 result += result_mc/ensemble
-            ser[idx] = result/n_elements
+            ser[idx] = result/channel_models.shape[1]
 
         return ser
         
@@ -225,7 +232,7 @@ class wOFDMSystem:
         elif self.name == 'CPwtx':
             self.cs_len = 0
             self.rm_len = self.cp_len - self.tail_tx
-            self._shift_len = self.tail_tx
+            self.shift_len = self.tail_tx
         elif self.name == 'wrx':
             self.cs_len = int(self.tail_rx/2)
             self.rm_len = int(self.cp_len - self.tail_rx/2)
@@ -279,9 +286,11 @@ class wOFDMSystem:
         """
 
         tx_mat = window_tx @ self.add_red_mat @ self.idft_mat
+        # tx_mat = self.add_red_mat@self.idft_mat
         rx_mat = self.dft_mat @ self.circ_shift_mat @ self.overlap_add_mat \
             @ window_rx @ self.rm_red_mat
         ser = self.__run_sim_mc(tx_mat, rx_mat, no_symbols, channel_models,
-                                ensemble, snr_arr, self.tail_tx, ser=True)
+                                ensemble, snr_arr, self.tail_tx, ser_flag=True)
+        print(ser)
 
 # EoF

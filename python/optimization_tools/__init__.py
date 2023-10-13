@@ -5,10 +5,11 @@ Jul 23, 2023
 """
 
 
-__all__ = ['optimization_fun']
+__all__ = ['optimization_fun', 'reduce_variable_tx', 'reduce_variable_rx']
 
 
 from .optimizers import optimization_fun
+from .utils import reduce_variable_tx, reduce_variable_rx
 
 
 # EoF

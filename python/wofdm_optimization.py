@@ -18,7 +18,8 @@ from ofdm_utils import simulation_fun
 def arg_parser():
     parser = argparse.ArgumentParser()
     parser.add_argument('-m', '--mode', type=str,
-                        help='Operation mode. Can be gen_chan, run_opt, or run_sim.')
+                        help='Operation mode. Can be gen_chan, run_opt or ' \
+                            + 'run_sim.')
     parser.add_argument('--no_channels', type=int, default=250,
                         help='Number of independent channels generated.')
     parser.add_argument('-cp', '--cp_length', type=str,
@@ -28,7 +29,8 @@ def arg_parser():
                         default='wtx,CPwtx,wrx,CPwrx,CPW,WOLA',
                         help='w-OFDM systems that will be tested.')
     parser.add_argument('--parallel', action=argparse.BooleanOptionalAction,
-                        help='Add the argument parallel to run processes in parallel.')
+                        help='Add the argument parallel to run processes in ' \
+                            + 'parallel.')
     parser.add_argument('--channel_path', type=str, default='channels',
                         help='Path to folder with channel. (save or load)')
     parser.add_argument('--window_path', type=str, default='optimized_windows',
@@ -76,7 +78,6 @@ if __name__ == '__main__':
         # Save channels:
         os.makedirs(channel_data_folder, exist_ok=True)
         np.save(channel_path, channel_tdl, fix_imports=False)
-
     elif args.mode == 'run_opt':
         from optimization_tools import optimization_fun
         os.makedirs(args.window_path, exist_ok=True)
@@ -97,19 +98,24 @@ if __name__ == '__main__':
         cp_list = [int(cp_len) for cp_len in args.cp_length.split(',')]
         sys_list = args.systems.split(',')
         snr_arr = np.arange(*[int(val) for val in args.snr.split(',')])
-        tail_tx_fun = lambda x,y: x if y in ['CPW', 'WOLA', 'CPwtx', 'wtx'] else 0
-        tail_rx_fun = lambda x,y: x if y in ['CPW', 'WOLA', 'CPwrx', 'wrx'] else 0
-        data_list = [(sys, dft_len, cp, tail_tx_fun(8, sys), tail_rx_fun(10, sys),
-                      channel_path, args.window_path, args.monte_carlo,
-                      snr_arr, args.no_symbols)
+        tail_tx_fun = lambda x,y: x if y in ['CPW', 'WOLA', 'CPwtx', 'wtx'] \
+            else 0
+        tail_rx_fun = lambda x,y: x if y in ['CPW', 'WOLA', 'CPwrx', 'wrx'] \
+            else 0
+        data_list = [(sys, dft_len, cp, tail_tx_fun(8, sys),
+                      tail_rx_fun(10, sys), channel_path, args.window_path,
+                      args.monte_carlo, snr_arr, args.no_symbols)
                      for sys in sys_list for cp in cp_list]
         if args.parallel:
             with Pool(cpu_count()) as pool:
                 pool.map(simulation_fun, data_list)
         else:
             [simulation_fun(data) for data in data_list]
+    elif args.mode == 'gen_figs.':
+        pass
     else:
-        print('Mode is not defined, be sure to use gen_chan, run_opt, or run_sim.')
+        print('Mode is not defined, be sure to use gen_chan, run_opt, or ' \
+              + 'run_sim.')
 
 
 # EoF

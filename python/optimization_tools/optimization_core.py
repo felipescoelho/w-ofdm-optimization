@@ -353,7 +353,7 @@ def nfi_pd_pf_cqp(H:np.ndarray, p:np.ndarray, A:np.ndarray, b:np.ndarray,
 def nfi_ip_mlc_cqp(H:np.ndarray, p:np.ndarray, A:np.ndarray, b:np.ndarray,
                    init_point=None, rho=None, epsilon=None):
     """Nonfeasible-initialization interior-point algorithm for mixed LC
-    problems.
+    problems adjusted for QP.
 
     From Algorithm 13.4 in Antoniou, A. and Lu W. "Practical
     Optimization: Algorithms and Engineering Applications", 2nd Ed.,
@@ -398,15 +398,15 @@ def nfi_ip_mlc_cqp(H:np.ndarray, p:np.ndarray, A:np.ndarray, b:np.ndarray,
     # Initialization:
     n_rows, n_cols = A.shape
     if init_point is None:
-        x0 = .5*np.ones((n_cols, 1), dtype=np.float64)
-        lamb0 = .5*np.ones((n_rows, 1), dtype=np.float64)
-        mu0 = .5*np.ones((n_cols, 1), dtype=np.float64)
+        x0 = np.ones((n_cols, 1), dtype=np.float64)
+        lamb0 = np.ones((n_rows, 1), dtype=np.float64)
+        mu0 = np.ones((n_cols, 1), dtype=np.float64)
     else:
         x0, lamb0, mu0 = init_point
     if not p.any():  # Allocate 0's if input is empty vector.
         p = np.zeros((n_cols, 1), dtype=np.float64)
     if rho is None:
-        rho = n_cols + 20*np.sqrt(n_cols)
+        rho = n_cols + 15*np.sqrt(n_cols)
     if epsilon is None:
         epsilon = 1e-5
     den = n_cols + rho
@@ -437,6 +437,7 @@ def nfi_ip_mlc_cqp(H:np.ndarray, p:np.ndarray, A:np.ndarray, b:np.ndarray,
             np.min(-mu.flatten()[delta_mu.flatten() < 0]
                    / delta_mu.flatten()[delta_mu.flatten() < 0], initial=1e12)
         )))
+        # print(alpha_k)
         x_sol = x_sol + alpha_k*delta_x
         lamb = lamb + alpha_k*delta_lamb
         mu = mu + alpha_k*delta_mu

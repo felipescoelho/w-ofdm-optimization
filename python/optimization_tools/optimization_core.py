@@ -117,7 +117,7 @@ def convert_inequality(H:np.ndarray, p:np.ndarray, A:np.ndarray):
     hat_A : np.ndarray
         Converted linear constrint matrix.
     """
-
+    
     n_rows, n_cols = A.shape
     hat_A = np.hstack((A, -A, np.eye(n_rows)))
     hat_H = np.vstack((
@@ -125,8 +125,7 @@ def convert_inequality(H:np.ndarray, p:np.ndarray, A:np.ndarray):
         np.hstack((-H, H, np.zeros((n_cols, n_rows)))),
         np.zeros((n_rows, 2*n_cols+n_rows))
     ))
-
-    hat_p = np.vstack((p, -p, np.zeros(p.shape)))
+    hat_p = np.vstack((p, -p, np.zeros((n_rows, 1))))
 
     return hat_H, hat_p, hat_A
 

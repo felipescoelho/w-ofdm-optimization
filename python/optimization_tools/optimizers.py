@@ -7,6 +7,7 @@ Jul 23, 2023
 """
 
 
+import os
 import numpy as np
 from numba import jit
 from scipy.linalg import issymmetric
@@ -16,7 +17,7 @@ from ofdm_utils import (
     gen_channel_tensor
 )
 from .utils import (reduce_variable_tx, reduce_variable_rx, gen_constraints_tx,
-                    gen_constraints_rx)
+                    gen_constraints_rx, reduce_variable_tx_rx)
 from .quadratic_programming import quadratic_solver
 
 
@@ -35,7 +36,7 @@ def optimization_fun(data:tuple):
                 Length of the cyclic prefix.
     """
     
-    system_design, dft_len, cp_len, channel_path = data
+    system_design, dft_len, cp_len, channel_path, window_path = data
     channel = np.load(channel_path)
     channel_avg = np.mean(channel, 1)
     if system_design in ['wtx', 'CPwtx']:
@@ -47,22 +48,28 @@ def optimization_fun(data:tuple):
         opt_model = OptimizerRx(system_design, dft_len, cp_len, tail_rx)
         var_len = int(tail_rx/2 + 1)
     elif system_design in ['CPW', 'WOLA']:
-        opt_model = OptimizerTxRx()
+        tail_tx = 8
+        tail_rx = 10
+        opt_model = OptimizerTxRx(system_design, dft_len, cp_len, tail_tx, tail_rx)
+        var_len = int((tail_rx/2)*tail_tx+1)
     
     chann_ten = opt_model.calculate_chann_matrices(channel_avg)
-    reg = 1e-4
+    reg = 0
     H_mat = opt_model.gen_hessian(chann_ten) + reg*np.eye(var_len)
     if not issymmetric(H_mat):
-        print('Not symmetric!')
+        print('Not symmetric! Applying correction H = (H + H.T)/2.')
         H_mat = .5*(H_mat + H_mat.T)
-    print(np.linalg.cond(H_mat))
-    print(np.linalg.eigvals(H_mat))
     x, _ = opt_model.optimize(H_mat)
-    print(x)
-    np.save(f'./optimized_windows/{system_design}_{cp_len}.npy', x)
+    
+    os.makedirs(os.path.join(window_path, 'condition_number'), exist_ok=True)
+    window_file_name = os.path.join(window_path, f'{system_design}_{cp_len}.npy')
+    condition_number_file_name = os.path.join(
+        window_path, 'condition_number', f'{system_design}_{cp_len}_{reg}.npy'
+    )
+    np.save(window_file_name, x)
+    np.save(condition_number_file_name, np.linalg.cond(H_mat))
 
     return 'ok'
-
 
 
 class OptimizerTx:
@@ -336,6 +343,27 @@ class OptimizerRx:
 class OptimizerTxRx:
     """"""
 
+    @staticmethod
+    # @jit(nopython=True)
+    def __gen_Q1(B_mat:np.ndarray, C_mat:np.ndarray, D_mat:np.ndarray):
+        """Method to generate Q1 using numba (which is way faster)."""
+
+        dft_len, _ = B_mat.shape
+        n_samples_rx, n_samples_tx = C_mat.shape
+        n_samples = n_samples_rx*n_samples_tx
+        Q1_mat = np.zeros((n_samples, n_samples), dtype=np.complex128)
+        for i in range(n_samples):
+            for j in range(i+1):
+                for m in range(dft_len):
+                    logic_aux = np.ones((dft_len,), dtype=np.bool_)
+                    logic_aux[m] = 0
+                    Q1_mat[i, j] += \
+                        np.transpose(np.conj(B_mat[logic_aux, i])) \
+                        * np.conj(C_mat[i, j]) * np.conj(D_mat[j, m]) \
+                        @ B_mat[logic_aux, j] * C_mat[j, i] * D_mat[i, m]
+                    
+        return np.real(Q1_mat + np.transpose(Q1_mat) - np.diag(np.diag(Q1_mat)))
+
     def __init__(self, system_design:str, dft_len:int, cp_len:int,
                  tail_tx_len:int, tail_rx_len:int):
         """
@@ -372,13 +400,16 @@ class OptimizerTxRx:
         self.add_red_mat = gen_add_redundancy_matrix(self.dft_len, self.cp_len,
                                                      self.cs_len)
         # Receiver:
-        self.rm_red_mat = gen_rm_redundancy_matrix(self.dft_len, 0, self.rm_len)
-        self.overlap_add_mat = gen_overlap_and_add_matrix(self.dft_len, 0)
-        self.circ_shift_mat = gen_circ_shift_matrix(self.dft_len, self.shift_len)
+        self.rm_red_mat = gen_rm_redundancy_matrix(
+            self.dft_len, self.tail_rx_len, self.rm_len
+        )
+        self.overlap_add_mat = gen_overlap_and_add_matrix(self.dft_len,
+                                                          self.tail_rx_len)
+        self.circ_shift_mat = gen_circ_shift_matrix(self.dft_len,
+                                                    self.shift_len)
         self.dft_mat = gen_dft_matrix(self.dft_len)
         # Variable manipulation:
-        self.reduce_var_mat = reduce_variable_tx(self.dft_len, self.cp_len,
-                                                 self.cs_len, self.tail_len)
+        self.reduce_var_mat = reduce_variable_tx_rx()
         
     def calculate_chann_matrices(self, channel_ir:np.ndarray):
         """Method to calculate channel matrices for the system.
@@ -393,9 +424,10 @@ class OptimizerTxRx:
         channel_tensor : np.ndarray
             Tensor with channel matrix, where the depth is the 3rd dim.
         """
-        channel_tensor = gen_channel_tensor(channel_ir, self.dft_len,
-                                            self.tail_len, 0, self.rm_len,
-                                            self.cp_len, self.cs_len)
+        channel_tensor = gen_channel_tensor(
+            channel_ir, self.dft_len, self.tail_tx_len, self.tail_rx_len,
+            self.rm_len, self.cp_len, self.cs_len
+        )
         
         return channel_tensor
     
@@ -413,12 +445,11 @@ class OptimizerTxRx:
         """
 
         B_mat = self.dft_mat@self.circ_shift_mat@self.overlap_add_mat
-        C_mat = self.rm_red_mat@channel_tensor[:, :, 0]@self.add_red_mat \
-            @ self.idft_mat 
-        D_mat = self.add_red_mat@self.circ_shift_mat@self.overlap_add_mat \
-            @ self.rm_red_mat@np.sum(channel_tensor[:, :, 1:], 2)
-        Q1_mat = self.__gen_Q1(B_mat, C_mat)
-        Q2_mat = np.real(np.diag(np.diag(D_mat @ np.transpose(D_mat))))
+        C_mat = self.rm_red_mat@channel_tensor[:, :, 0]
+        C2_mat = self.rm_red_mat@np.sum(channel_tensor[:, :, 1:], 2)
+        D_mat = self.add_red_mat@self.idft_mat
+        Q1_mat = self.__gen_Q1(B_mat, C_mat, D_mat)
+        Q2_mat = self.__gen_Q2(B_mat, C2_mat, D_mat)
 
         return np.transpose(self.reduce_var_mat) @ (2*(Q1_mat + Q2_mat)) \
             @ self.reduce_var_mat

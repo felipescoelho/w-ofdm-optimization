@@ -121,10 +121,41 @@ def gen_constraints_rx(tail_len:int):
 
     A = np.hstack((np.array([1.], ndmin=2), np.zeros((1, int(tail_len/2)))))
     b = np.array([1.], ndmin=2)
-    C = np.hstack((np.zeros((int(tail_len/2), 1)), np.eye(int(tail_len/2))))
-    d = np.ones((int(tail_len/2), 1))
+    C = np.vstack((
+        np.hstack((np.zeros((int(tail_len/2), 1)), np.eye(int(tail_len/2)))),
+        np.hstack((np.ones((int(tail_len/2), 1)), -np.eye(int(tail_len/2))))
+    ))
+    d = np.vstack((np.ones((int(tail_len/2), 1)),
+                   .5*np.ones((int(tail_len/2), 1))))
 
     return A, b, C, d
+
+
+def reduce_variable_tx_rx(dft_len:int, cp_len:int, cs_len:int, tail_rx:int,
+                          tail_tx:int):
+    """Method to reduce variable before for both ends optimization.
+    
+    Parameters
+    ----------
+    dft_len : int
+        Length of the DFT.
+    cp_len : int
+        Length of the cyclic prefix.
+    cs_len : int
+        Length of the cyclic suffix.
+    tail_rx : int
+        Number of samples at the receiver's tail.
+    tail_tx : int
+        Number of samples at the transmitter's tail.
+    
+    Returns
+    -------
+    reduce_var_mat : np.ndarray
+        Array responsible for reducing the number of elements in the
+        optimization variable.
+    """
+
+    
 
 
 # EoF

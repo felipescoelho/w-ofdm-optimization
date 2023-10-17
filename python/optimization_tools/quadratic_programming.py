@@ -58,7 +58,6 @@ def quadratic_solver(H:np.ndarray, p:np.ndarray, A:np.ndarray, b:np.ndarray,
     H_hat0, p_hat0, C_hat0, d_hat = eliminate_equality(H, p, A, b, C, d)
     H_hat, p_hat, C_hat = convert_inequality(H_hat0, p_hat0, C_hat0)
     if method == 'interior-point':
-        
         x_sol_hat, _, n_iter = nfi_ip_mlc_cqp(H_hat, p_hat, C_hat, d_hat, None,
                                               rho, epsilon)
     else:

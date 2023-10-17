@@ -78,9 +78,8 @@ def gen_rc_window_tx(idft_len, cp_len, cs_len, tail_len):
         Raised cosine window for the transmitter.
     """
 
-    tail_axis = np.arange(-(tail_len+1)/2 + 1, (tail_len+1)/2 -1, 1)
+    tail_axis = np.arange(-(tail_len+1)/2+1, (tail_len+1)/2, 1)
     rc_tail = np.sin(np.pi/2 * (.5 + tail_axis/tail_len))
-
     rc_window = np.hstack((rc_tail,
                            np.ones((idft_len+cp_len+cs_len-(2*tail_len),)),
                            rc_tail[::-1]))

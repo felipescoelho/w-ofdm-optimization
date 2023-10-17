@@ -77,7 +77,8 @@ class wOFDMSystem:
 
     @staticmethod
     @jit(nopython=True)
-    def __run_sim_mc(tx_mat:np.ndarray, rx_mat:np.ndarray, no_symbols:int,
+    def __run_sim_mc(tx_mat:np.ndarray, tx_mat_rc: np.ndarray,
+                     rx_mat:np.ndarray, rx_mat_rc: np.ndarray, no_symbols:int,
                      channel_models:np.ndarray, ensemble:int, snr_arr:float,
                      tail_tx_len:int, ser_flag=True):
         """Method to run simulation using numba.
@@ -159,10 +160,13 @@ class wOFDMSystem:
         
         n_elements = len(snr_arr)
         ser = np.zeros((n_elements,), dtype=np.float64)
+        ser_rc = np.zeros((n_elements,), dtype=np.float64)
         for idx, snr in enumerate(snr_arr):
             result = 0
+            result_rc = 0
             for ch_idx in range(channel_models.shape[1]):
                 result_mc = 0
+                result_mc_rc = 0
                 for _ in range(ensemble):
                     if ser_flag:
                         symbols = np.array((-3-3j, -3-1j, -3+1j, -3+3j, -1-3j,
@@ -174,34 +178,61 @@ class wOFDMSystem:
                             replace=True
                         )
                         frame_tx = (tx_mat @ signal_digmod).T
+                        frame_tx_rc = (tx_mat_rc @ signal_digmod).T
                         # overlap-and-add -> serialize
                         signal_ov = frame_tx[:, tail_tx_len:]
-                        signal_ov[:-1, -tail_tx_len:] = \
-                            frame_tx[1:, :tail_tx_len] \
-                            + frame_tx[:-1, -tail_tx_len:]
+                        signal_ov_rc = frame_tx_rc[:, tail_tx_len:]
+                        if tail_tx_len != 0:
+                            signal_ov[:-1, -tail_tx_len:] += \
+                                frame_tx[1:, :tail_tx_len]
+                            signal_ov_rc[:-1, -tail_tx_len:] += \
+                                frame_tx_rc[1:, :tail_tx_len]
+                        # signal_ov[:-1, -tail_tx_len:] = \
+                        #     frame_tx[1:, :tail_tx_len] \
+                        #     + frame_tx[:-1, -tail_tx_len:]
                         signal_tx = np.hstack((frame_tx[0, :tail_tx_len],
                                                signal_ov.flatten()))
+                        signal_tx_rc = np.hstack((frame_tx_rc[0, :tail_tx_len],
+                                                  signal_ov_rc.flatten()))
                         # Convolution 'valid' + noise
                         channel_model = channel_models[:, ch_idx]
                         signal_conv = np.convolve(channel_model, signal_tx)
+                        signal_conv_rc = np.convolve(channel_model, signal_tx_rc)
                         signal_rx = awgn(
-                            signal_conv[:-(len(channel_model)+tail_tx_len-1)], snr
+                            signal_conv[:-(len(channel_model)+tail_tx_len-1)],
+                            snr
+                        )
+                        signal_rx_rc = awgn(
+                            signal_conv_rc[:-(len(channel_model)+tail_tx_len-1)],
+                            snr
                         )
                         # parallelize -> preprocess -> recover
                         frame_rx = signal_rx.reshape((no_symbols,
                                                       rx_mat.shape[1]))
+                        frame_rx_rc = signal_rx_rc.reshape((no_symbols,
+                                                            rx_mat_rc.shape[1]))
                         signal_preproc = rx_mat @ frame_rx.T
+                        signal_preproc_rc = rx_mat_rc @ frame_rx_rc.T
                         channel_est = signal_preproc[:, 0]/signal_digmod[:, 0]
+                        channel_est_rc = signal_preproc_rc[:, 0]/signal_digmod[:, 0]
                         channel_est_mat = np.repeat(
                             channel_est, no_symbols-1
                         ).reshape((tx_mat.shape[1], no_symbols-1))
+                        channel_est_mat_rc = np.repeat(
+                            channel_est_rc, no_symbols-1
+                        ).reshape((tx_mat_rc.shape[1], no_symbols-1))
                         recovered_signal = signal_preproc[:, 1:]/channel_est_mat
+                        recovered_signal_rc = signal_preproc_rc[:, 1:]/channel_est_mat_rc
                         symbols_est = decision(recovered_signal, symbols)
+                        symbols_est_rc = decision(recovered_signal_rc, symbols)
                         result_mc += np.mean((symbols_est != signal_digmod[:, 1:]))
+                        result_mc_rc += np.mean((symbols_est_rc != signal_digmod[:, 1:]))
                 result += result_mc/ensemble
+                result_rc += result_mc_rc/ensemble
             ser[idx] = result/channel_models.shape[1]
+            ser_rc[idx] = result_rc/channel_models.shape[1]
 
-        return ser
+        return ser, ser_rc
         
     def __init__(self, system_design:str, dft_len:int, cp_len:int, tail_tx:int,
                  tail_rx:int):
@@ -286,11 +317,19 @@ class wOFDMSystem:
         """
 
         tx_mat = window_tx @ self.add_red_mat @ self.idft_mat
-        # tx_mat = self.add_red_mat@self.idft_mat
+        tx_mat_rc = gen_rc_window_tx(
+            self.dft_len, self.cp_len, self.cs_len, self.tail_tx
+        ) @ self.add_red_mat @self.idft_mat
         rx_mat = self.dft_mat @ self.circ_shift_mat @ self.overlap_add_mat \
             @ window_rx @ self.rm_red_mat
-        ser = self.__run_sim_mc(tx_mat, rx_mat, no_symbols, channel_models,
-                                ensemble, snr_arr, self.tail_tx, ser_flag=True)
-        print(ser)
+        rx_mat_rc = self.dft_mat @ self.circ_shift_mat @ self.overlap_add_mat \
+            @ gen_rc_window_rx(self.dft_len, self.tail_rx) @ self.rm_red_mat
+        ser_opt, ser_rc = self.__run_sim_mc(
+            tx_mat, tx_mat_rc, rx_mat, rx_mat_rc, no_symbols, channel_models,
+            ensemble, snr_arr, self.tail_tx, ser_flag=True
+        )
+
+        print(ser_opt)
+        print(ser_rc)
 
 # EoF

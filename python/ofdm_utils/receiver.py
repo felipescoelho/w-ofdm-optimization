@@ -49,7 +49,7 @@ def gen_rc_window_rx(dft_len:int, tail_len:int):
         Raised cosine window for the receiver.
     """
 
-    tail_axis = np.arange(-(tail_len+1)/2 + 1, (tail_len+1)/2 -1, 1)
+    tail_axis = np.arange(-(tail_len+1)/2 + 1, (tail_len+1)/2, 1)
     rc_tail = np.sin(np.pi/2 * (.5 + tail_axis/tail_len))
     rc_window = np.hstack((rc_tail, np.ones((dft_len-tail_len,)), rc_tail[::-1]))
 

@@ -7,7 +7,6 @@ Oct 7, 2023
 
 
 import argparse
-import matplotlib.pyplot as plt
 import numpy as np
 import os
 from multiprocessing import cpu_count, Pool
@@ -31,6 +30,8 @@ def arg_parser():
     parser.add_argument('--parallel', action=argparse.BooleanOptionalAction,
                         help='Add the argument parallel to run processes in ' \
                             + 'parallel.')
+    parser.add_argument('-f', '--figures', action=argparse.BooleanOptionalAction,
+                        help='Generate figures instead of running the process.')
     parser.add_argument('--channel_path', type=str, default='channels',
                         help='Path to folder with channel. (save or load)')
     parser.add_argument('--window_path', type=str, default='optimized_windows',
@@ -79,40 +80,45 @@ if __name__ == '__main__':
         os.makedirs(channel_data_folder, exist_ok=True)
         np.save(channel_path, channel_tdl, fix_imports=False)
     elif args.mode == 'run_opt':
-        from optimization_tools import optimization_fun
-        os.makedirs(args.window_path, exist_ok=True)
-        # Simulation settings:
-        dft_len = 256
-        cp_list = [int(cp_len) for cp_len in args.cp_length.split(',')]
-        sys_list = args.systems.split(',')
-        data_list = [(sys, dft_len, cp, channel_path) for sys in sys_list for
-                     cp in cp_list]
-        if args.parallel:
-            with Pool(cpu_count()) as pool:
-                a = pool.map(optimization_fun, data_list)
+        if args.figures:
+            pass
         else:
-            a = [optimization_fun(data) for data in data_list]
+            from optimization_tools import optimization_fun
+            os.makedirs(args.window_path, exist_ok=True)
+            # Simulation settings:
+            dft_len = 256
+            cp_list = [int(cp_len) for cp_len in args.cp_length.split(',')]
+            sys_list = args.systems.split(',')
+            data_list = [(sys, dft_len, cp, channel_path, args.window_path) for
+                         sys in sys_list for cp in cp_list]
+            if args.parallel:
+                with Pool(cpu_count()) as pool:
+                    pool.map(optimization_fun, data_list)
+            else:
+                [optimization_fun(data) for data in data_list]
+
     elif args.mode == 'run_sim':
-        # Simulation settings:
-        dft_len = 256
-        cp_list = [int(cp_len) for cp_len in args.cp_length.split(',')]
-        sys_list = args.systems.split(',')
-        snr_arr = np.arange(*[int(val) for val in args.snr.split(',')])
-        tail_tx_fun = lambda x,y: x if y in ['CPW', 'WOLA', 'CPwtx', 'wtx'] \
-            else 0
-        tail_rx_fun = lambda x,y: x if y in ['CPW', 'WOLA', 'CPwrx', 'wrx'] \
-            else 0
-        data_list = [(sys, dft_len, cp, tail_tx_fun(8, sys),
-                      tail_rx_fun(10, sys), channel_path, args.window_path,
-                      args.monte_carlo, snr_arr, args.no_symbols)
-                     for sys in sys_list for cp in cp_list]
-        if args.parallel:
-            with Pool(cpu_count()) as pool:
-                pool.map(simulation_fun, data_list)
+        if args.figures:
+            pass
         else:
-            [simulation_fun(data) for data in data_list]
-    elif args.mode == 'gen_figs.':
-        pass
+            # Simulation settings:
+            dft_len = 256
+            cp_list = [int(cp_len) for cp_len in args.cp_length.split(',')]
+            sys_list = args.systems.split(',')
+            snr_arr = np.arange(*[int(val) for val in args.snr.split(',')])
+            tail_tx_fun = lambda x,y: x if y in ['CPW', 'WOLA', 'CPwtx', 'wtx'] \
+                else 0
+            tail_rx_fun = lambda x,y: x if y in ['CPW', 'WOLA', 'CPwrx', 'wrx'] \
+                else 0
+            data_list = [(sys, dft_len, cp, tail_tx_fun(8, sys),
+                          tail_rx_fun(10, sys), channel_path, args.window_path,
+                          args.monte_carlo, snr_arr, args.no_symbols)
+                         for sys in sys_list for cp in cp_list]
+            if args.parallel:
+                with Pool(cpu_count()) as pool:
+                    pool.map(simulation_fun, data_list)
+            else:
+                [simulation_fun(data) for data in data_list]
     else:
         print('Mode is not defined, be sure to use gen_chan, run_opt, or ' \
               + 'run_sim.')

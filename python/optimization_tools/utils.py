@@ -131,31 +131,33 @@ def gen_constraints_rx(tail_len:int):
     return A, b, C, d
 
 
-def reduce_variable_tx_rx(dft_len:int, cp_len:int, cs_len:int, tail_rx:int,
-                          tail_tx:int):
+def gen_costriants_q(tail_tx_len:int, tail_rx_len:int):
     """Method to reduce variable before for both ends optimization.
     
     Parameters
     ----------
-    dft_len : int
-        Length of the DFT.
-    cp_len : int
-        Length of the cyclic prefix.
-    cs_len : int
-        Length of the cyclic suffix.
-    tail_rx : int
-        Number of samples at the receiver's tail.
-    tail_tx : int
+    tail_tx_len : int
         Number of samples at the transmitter's tail.
+    tail_rx_len : int
+        Number of samples at the receiver's tail.
     
     Returns
     -------
-    reduce_var_mat : np.ndarray
-        Array responsible for reducing the number of elements in the
-        optimization variable.
+    Q : np.ndarray
+        Matrix with quadratic constrains.
     """
 
+    n_samples = int((tail_rx_len/2 + 1)*tail_tx_len)
+    Q = np.zeros((n_samples, n_samples), dtype=np.float64)
+    for i in range(n_samples):
+        m = int(tail_tx_len*np.floor(i/tail_tx_len))
+        n = i - m
+        Q[0, i] = 1
+        Q[m, n] = -1
+        Q[n, m] = -1
+        Q[i, 0] = 1
     
+    return Q
 
 
 # EoF

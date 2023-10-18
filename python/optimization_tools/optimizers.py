@@ -17,7 +17,7 @@ from ofdm_utils import (
     gen_channel_tensor
 )
 from .utils import (reduce_variable_tx, reduce_variable_rx, gen_constraints_tx,
-                    gen_constraints_rx, reduce_variable_tx_rx)
+                    gen_constraints_rx, gen_costriants_q)
 from .quadratic_programming import quadratic_solver
 
 
@@ -345,24 +345,52 @@ class OptimizerTxRx:
 
     @staticmethod
     # @jit(nopython=True)
-    def __gen_Q1(B_mat:np.ndarray, C_mat:np.ndarray, D_mat:np.ndarray):
-        """Method to generate Q1 using numba (which is way faster)."""
+    def __gen_Q1(B_mat:np.ndarray, C_mat:np.ndarray, D_mat:np.ndarray,
+                 red_tx:np.ndarray, red_rx:np.ndarray, aux_map:np.ndarray):
+        """
+        Method to generate Q1 using numba (which is way faster).
+        
+        Parameters
+        ----------
+        B_mat : np.ndarray
+            Array with B matrix.
+        C_mat : np.ndarray
+            Array with C matrix.
+        D_mat : np.ndarray
+            Array with D matrix.
+        red_tx : np.ndarray
+            Array with reduction matrix for the transmitter.
+        red_rx : np.ndarray
+            Array with reduction matrix for the receiver.
+        aux_map : np.ndarray
+            Auxiliary maping for index.
+        """
 
         dft_len, _ = B_mat.shape
-        n_samples_rx, n_samples_tx = C_mat.shape
-        n_samples = n_samples_rx*n_samples_tx
+        len_rx, len_tx = C_mat.shape
+        _, len_red_rx = red_rx.shape
+        _, len_red_tx = red_tx.shape
+        n_samples = int(len_red_tx*len_red_rx)
+        mm = np.zeros(())
+        for i in range(dft_len):
+            for j in range(dft_len):
+                if i == j:
+                    continue
+                M_mat = np.zeros((len_rx, len_tx), dtype=np.complex128)
+                for m in range(len_rx):
+                    for n in range(len_tx):
+                        M_mat[m, n] = B_mat[i, m] * D_mat[n, j]
+                import pdb; pdb.set_trace()
+                M_mat *= C_mat
+                M_prim = red_rx.T @ M_mat @ red_tx
+                m = M_prim.flatten()
         Q1_mat = np.zeros((n_samples, n_samples), dtype=np.complex128)
-        for i in range(n_samples):
-            for j in range(i+1):
-                for m in range(dft_len):
-                    logic_aux = np.ones((dft_len,), dtype=np.bool_)
-                    logic_aux[m] = 0
-                    Q1_mat[i, j] += \
-                        np.transpose(np.conj(B_mat[logic_aux, i])) \
-                        * np.conj(C_mat[i, j]) * np.conj(D_mat[j, m]) \
-                        @ B_mat[logic_aux, j] * C_mat[j, i] * D_mat[i, m]
-                    
-        return np.real(Q1_mat + np.transpose(Q1_mat) - np.diag(np.diag(Q1_mat)))
+        for k1 in range(n_samples):
+            for k2 in range(n_samples):
+                Q1_mat[k1, k2] += m[k1]*np.conj(m[k2])
+            print('ok')
+                
+        return Q1_mat
 
     def __init__(self, system_design:str, dft_len:int, cp_len:int,
                  tail_tx_len:int, tail_rx_len:int):
@@ -409,7 +437,11 @@ class OptimizerTxRx:
                                                     self.shift_len)
         self.dft_mat = gen_dft_matrix(self.dft_len)
         # Variable manipulation:
-        self.reduce_var_mat = reduce_variable_tx_rx()
+        self.reduce_var_tx_mat = reduce_variable_tx(
+            self.dft_len, self.cp_len, self.cs_len, self.tail_tx_len
+        )
+        self.reduce_var_rx_mat = reduce_variable_rx(self.dft_len,
+                                                    self.tail_rx_len)
         
     def calculate_chann_matrices(self, channel_ir:np.ndarray):
         """Method to calculate channel matrices for the system.
@@ -448,7 +480,16 @@ class OptimizerTxRx:
         C_mat = self.rm_red_mat@channel_tensor[:, :, 0]
         C2_mat = self.rm_red_mat@np.sum(channel_tensor[:, :, 1:], 2)
         D_mat = self.add_red_mat@self.idft_mat
-        Q1_mat = self.__gen_Q1(B_mat, C_mat, D_mat)
+        aux_map = np.array([(i, j)
+                            for i in range(self.reduce_var_rx_mat.shape[1])
+                            for j in range(self.reduce_var_tx_mat.shape[1])])
+        Q1_mat = self.__gen_Q1(B_mat, C_mat, D_mat,
+                               self.reduce_var_tx_mat.astype(np.complex128),
+                               self.reduce_var_rx_mat.astype(np.complex128),
+                               aux_map)
+        
+        import pdb; pdb.set_trace()
+
         Q2_mat = self.__gen_Q2(B_mat, C2_mat, D_mat)
 
         return np.transpose(self.reduce_var_mat) @ (2*(Q1_mat + Q2_mat)) \

@@ -449,4 +449,65 @@ def nfi_ip_mlc_cqp(H:np.ndarray, p:np.ndarray, A:np.ndarray, b:np.ndarray,
     return x_sol, y_sol, n_iter
 
 
+def p_sqp(f, g, eta:float, tau:float, rho:float,
+          lengths:tuple, init_point=None, epsilon=1e-6):
+    """Practical SQP algorithm.
+    
+    Based on Algorithm 15.6 in Antoniou, A. and Lu W. "Practical
+    Optimization: Algorithms and Engineering Applications", 2nd Ed.,
+    Springer, 2021
+    
+    Parameters
+    ----------
+    f : function
+        The function we wnat to optimize.
+    g : function
+        The gradient of our function.
+    eta : float
+        Penalty weight for large values of the slack variable.
+    tau : float
+        Weight for the merit function in the modified BFGS.
+    rho : float
+        Additional bound constraint (regulates the step size).
+    lengths : tuple (n, p, q)
+        n : int
+            Length of our optimization variable.
+        p : int
+            Number of equality constraints.
+        q : int
+            Number of inequality constraints.
+    init_point : tuple (x0, lamb0, mu0)
+        x0 : np.ndarray
+            Initial value for x
+        lamb0 : np.ndarray
+            Initail values for Lagrange multipliers.
+        mu0 : np.ndarray
+            Initial values for Lagrange multipliers.
+    epsilon : float
+        Threshold for stop criteria.
+    """
+    
+    # Initialize as step 1
+    if init_point is None:
+        n, p, q = lengths
+        x0 = np.ones((n, 1), dtype=np.float64)
+        lamb0 = np.ones((p, 1), dtype=np.float64)
+        mu0 = np.ones((q, 1), dtype=np.float64)
+    else:
+        x0, lamb0, mu0 = init_point
+        n = len(x0)
+        p = len(lamb0)
+        q = len(mu0)
+    Z_k = np.eye(n)
+    f_k, a_k, c_k = f(x0)
+    g_k, A_ek, A_ik = g(x0)
+    n_iter = 0
+    step_size = 1  # Dummy value to start algorithm
+    while step_size >= epsilon:
+        n_iter += 1
+        # g_k = 
+
+
+
+
 # EoF

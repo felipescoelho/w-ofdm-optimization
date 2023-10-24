@@ -131,7 +131,7 @@ def gen_constraints_rx(tail_len:int):
     return A, b, C, d
 
 
-def gen_costriants_q(tail_tx_len:int, tail_rx_len:int):
+def gen_constraints_tx_rx(tail_tx_len:int, tail_rx_len:int):
     """Method to reduce variable before for both ends optimization.
     
     Parameters
@@ -147,16 +147,22 @@ def gen_costriants_q(tail_tx_len:int, tail_rx_len:int):
         Matrix with quadratic constrains.
     """
 
-    n_samples = int((tail_rx_len/2 + 1)*tail_tx_len)
+    n_samples = int((tail_rx_len/2 + 1)*(tail_tx_len+1))
     Q = np.zeros((n_samples, n_samples), dtype=np.float64)
-    for i in range(n_samples):
-        m = int(tail_tx_len*np.floor(i/tail_tx_len))
-        n = i - m
-        Q[0, i] = 1
-        Q[m, n] = -1
-        Q[n, m] = -1
-        Q[i, 0] = 1
-    
+    for n in range(1, int(1+tail_rx_len/2)):
+        i = n*(tail_tx_len+1)
+        for j in range(1, tail_tx_len+1):
+            Q[0, i+j] = 1
+            Q[i+j, 0] = 1
+            Q[i, j] = -1
+            Q[j, i] = -1
+            # m = int(tail_tx_len*np.floor(i/tail_tx_len))
+            # n = i - m
+            # Q[0, i] = 1
+            # Q[m, n] = -1
+            # Q[n, m] = -1
+            # Q[i, 0] = 1
+
     return Q
 
 

@@ -17,7 +17,7 @@ from ofdm_utils import (
     gen_channel_tensor
 )
 from .utils import (reduce_variable_tx, reduce_variable_rx, gen_constraints_tx,
-                    gen_constraints_rx, gen_costriants_q)
+                    gen_constraints_rx, gen_constraints_tx_rx)
 from .quadratic_programming import quadratic_solver
 
 
@@ -59,7 +59,6 @@ def optimization_fun(data:tuple):
     if not issymmetric(H_mat):
         print('Not symmetric! Applying correction H = (H + H.T)/2.')
         H_mat = .5*(H_mat + H_mat.T)
-    import pdb; pdb.set_trace()
     x, _ = opt_model.optimize(H_mat)
     
     os.makedirs(os.path.join(window_path, 'condition_number'), exist_ok=True)
@@ -526,6 +525,24 @@ class OptimizerTxRx:
                                self.reduce_var_rx_mat.astype(np.complex128))
 
         return 2*(Q1_mat + Q2_mat)
+    
+    def optimize(self, H_mat:np.ndarray):
+        """
+        Method to run optimization using our algorithms.
+        """
+
+        m0 = np.arange(0, 6, 1)
+        m1 = np.arange(0, 9, 1)
+        x = np.zeros((len(m0)*len(m1), 1))
+        for k in range(len(x)):
+            x[k] = m0[np.floor(k/9)]*m1[k - int(9*np.floor(k/9))]
+        A = gen_constraints_tx_rx(self.tail_tx_len, self.tail_rx_len)
+        # A, b, C, d = gen_constraints_tx_rx(self.tail_tx_len, self.tail_rx_len)
+        import pdb; pdb.set_trace()
+        p = np.zeros((H_mat.shape[0], 1), dtype=np.float64)
+        x, n_iter = quadratic_solver(H_mat, p, A, b, C, d, epsilon=1e-9)
+
+        return x, n_iter
 
 
 # EoF

@@ -449,8 +449,88 @@ def nfi_ip_mlc_cqp(H:np.ndarray, p:np.ndarray, A:np.ndarray, b:np.ndarray,
     return x_sol, y_sol, n_iter
 
 
-def p_sqp(f, g, eta:float, tau:float, rho:float,
-          lengths:tuple, init_point=None, epsilon=1e-6):
+def qp_solve(H, p, Ae, be, Ci, di, x0, epsilon):
+    """Solver for General QP."""
+    p = len(be)
+    q = len(di)
+    rho_q = q + 1.5*np.sqrt(q)
+    x = x0.copy()
+    y = Ae@x - be
+    lmbd = np.zeros((p, 1), dtype=np.float64)
+    mu = np.ones((q, 1), dtype=np.float64)
+    ym = y*mu
+    gap = np.sum(ym)
+    n_iter = 0
+    while gap > epsilon:
+        tau = gap/rho_q
+        rd = -H@x - p + Ae.T @ lmbd + Ci.T @mu
+        ra = be - Ae@x
+        ksi = tau - y*mu
+        ymi = mu/y
+        yksi = ksi/y
+        YMI = np.diagflat(ymi)
+        G = np.linalg.inv(H + Ci.T@YMI@Ci)
+        Ga = Ae @ G @ Ae.T
+        ayk = rd + Ci.T@yksi
+        rt = ra - Ae@G@ayk
+        d_lmbd = np.linalg.inv(Ga)@rt
+        d_x = G@(ayk + Ae.T@d_lmbd)
+        d_y = Ci @ d_x
+        d_mu = (ksi - (mu*d_y))/y
+        alpha_k = (1 - 1e-6) * np.min((1,
+            np.min(-y.flatten()[d_y.flatten() < 0]
+                   / d_y.flatten()[d_y.flatten() < 0], initial=1e12),
+            np.min(-mu.flatten()[d_mu.flatten() < 0]
+                   / d_mu.flatten()[d_mu.flatten() < 0], initial=1e12)
+        ))
+        x = x + alpha_k*d_x
+        mu = mu + alpha_k*d_mu
+        lmbd = lmbd + alpha_k*d_lmbd
+        y = Ci@x - di
+        ym = y*mu
+        gap = np.sum(ym)
+        n_iter += 1
+
+    return x
+
+
+def linesearch_powell_mod(f, x_k, d_x, mu_k):
+    """"""
+    bt = 100
+    aa = np.arange(0, 1, .01)
+    ps = np.zeros((100, 1))
+    for i in range(100):
+        ai = aa[i]
+        xdi = x_k + ai*d_x
+        fval, a_k, c_k = f(xdi)
+        ps[i] = fval + bt*sum(a_k**2) - mu_k.T@c_k
+    idx = np.argmin(ps)
+    a1 = aa[idx]
+    idx1 = np.nonzero(mu_k <= 1e-5)
+    s1 = len(idx1)
+    if s1 == 0:
+        
+        return .95*a1
+    
+    dk = np.zeros((s1, 1))
+    for i in range(s1):
+        for j in range(100):
+            aj = aa[j]
+            xdj = x_k + aj*d_x
+            _, _, ckj = f(xdj)
+            ps[j] = ckj[idx1[i]]
+        idx2 = np.flatnonzero(ps < 0)
+        s2 = len(idx2)
+        if s2 == 0:
+            dk[i] = 1
+        else:
+            dk[i] = aa[idx2[0]-1]
+    a2 = np.min(dk)
+    
+    return .95*np.min((a1, a2))
+
+
+def p_sqp(f, g, x0, epsilon=1e-6):
     """Practical SQP algorithm.
     
     Based on Algorithm 15.6 in Antoniou, A. and Lu W. "Practical
@@ -460,52 +540,72 @@ def p_sqp(f, g, eta:float, tau:float, rho:float,
     Parameters
     ----------
     f : function
-        The function we wnat to optimize.
+        The function we want to optimize.
     g : function
         The gradient of our function.
-    eta : float
-        Penalty weight for large values of the slack variable.
-    tau : float
-        Weight for the merit function in the modified BFGS.
-    rho : float
-        Additional bound constraint (regulates the step size).
-    lengths : tuple (n, p, q)
-        n : int
-            Length of our optimization variable.
-        p : int
-            Number of equality constraints.
-        q : int
-            Number of inequality constraints.
-    init_point : tuple (x0, lamb0, mu0)
-        x0 : np.ndarray
-            Initial value for x
-        lamb0 : np.ndarray
-            Initail values for Lagrange multipliers.
-        mu0 : np.ndarray
-            Initial values for Lagrange multipliers.
+    x0 : np.ndarray
+        Initial point for our algorithm.
     epsilon : float
-        Threshold for stop criteria.
+        Threshold for stop criterion.
+
+    Return
+    ------
+    x_k : np.ndarray
+        Solution.
+    n_ter : int
+        Number of iterations.
     """
     
     # Initialize as step 1
-    if init_point is None:
-        n, p, q = lengths
-        x0 = np.ones((n, 1), dtype=np.float64)
-        lamb0 = np.ones((p, 1), dtype=np.float64)
-        mu0 = np.ones((q, 1), dtype=np.float64)
-    else:
-        x0, lamb0, mu0 = init_point
-        n = len(x0)
-        p = len(lamb0)
-        q = len(mu0)
+    n = len(x0)
     Z_k = np.eye(n)
-    f_k, a_k, c_k = f(x0)
+    _, a_k, c_k = f(x0)
     g_k, A_ek, A_ik = g(x0)
+    q = len(A_ik)
+    p = len(A_ek)
+    x_k = x0.copy()
     n_iter = 0
-    step_size = 1  # Dummy value to start algorithm
-    while step_size >= epsilon:
+    distance = 1  # Dummy value to start algorithm
+    while distance >= epsilon:
         n_iter += 1
-        # g_k = 
+        d_x = qp_solve(Z_k, g_k, A_ek, -a_k, A_ik, -c_k,
+                       np.zeros((n, 1), dtype=np.float64), epsilon)
+        dd = A_ik @ (x_k + d_x) + c_k
+        idx = np.argwhere(dd <= 1e-5)
+        ssi = len(idx)
+        mu_k = np.zeros((q, 1), dtype=np.float64)
+        if ssi == 0:
+            lmbd = np.linalg.inv(A_ek@A_ek.T)@A_ek@(Z_k@d_x + g_k)
+        else:
+            Aa_ik = A_ik[idx, :]
+            Aa_k = np.vstack((A_ek, Aa_ik))
+            z_mu = np.linalg.inv(Aa_k@Aa_k.T)@Aa_k@(Z_k@d_x + g_k)
+            lmbd = z_mu[:p]
+            mu_kh = z_mu[p:]
+            mu_k[idx] = mu_kh
+        ala = linesearch_powell_mod(f, x_k, d_x, mu_k)
+        d_x = ala*d_x
+        x_k = x_k + d_x
+        g_k1, A_ek1, A_ik1 = g(x_k)
+        gamma_k = (g_k1-g_k) - (A_ek1-A_ek).T@lmbd - (A_ik1-A_ik).T@mu_k
+        q_k = Z_k@d_x
+        d_g = d_x.T@gamma_k
+        ww = d_x.T@q_k
+        if d_g >= .2*ww:
+            thet = 1
+        else:
+            thet = .8*ww/(ww-d_g)
+        eta = thet*gamma_k + (1-thet)*q_k
+        phi = 1/ww
+        cta = 1/(d_x.T@eta)
+        Z_k = Z_k + cta*(eta@eta.T) - phi*(q_k@q_k.T)
+        A_ek = A_ek1
+        A_ik = A_ik1
+        g_k = g_k1
+        _, a_k, c_k = f(x_k)
+        distance = np.linalg.norm(d_x)
+    
+    return x_k, n_iter
 
 
 

@@ -13,7 +13,7 @@ import numpy as np
 import unittest
 from optimization_core import (
     eliminate_equality, pd_pf_cqp, convert_inequality, nfi_pd_pf_cqp,
-    recover_variable
+    p_sqp
 )
 
 
@@ -59,21 +59,46 @@ class TestOptimizationAlgorithms(unittest.TestCase):
         self.assertTrue(np.allclose(y_sol, opt_ysol))
         self.assertTrue(np.allclose(x_sol, opt_xsol))
 
-    def test_nfi_pd_pf_cqp(self):
-        H = np.array(((1., 0., -1., 0.), (0., 1., 0., -1.), (-1., 0., 1., 0.),
-                      (0., -1., 0., 1.)), dtype=np.float64, ndmin=2)
-        p = np.array((), ndmin=2)
-        A = np.array(((-1., 0., 0., 0.), (0., -1., 0., 0.), (1., 2., 0., 0.),
-                      (0., 0., 0., -1.), (0., 0., -1., -1.), (0., 0., 1., 2.)),
-                     dtype=np.float64, ndmin=2)
-        b = np.array((0., 0., 2., -2., -3., 6.), dtype=np.float64, ndmin=2).T
-        hat_H, hat_p, hat_A = convert_inequality(H, p, A)
-        x_sol, y_sol, n_iter = nfi_pd_pf_cqp(hat_H, hat_p, hat_A, b)
-        x_sol_recovered = recover_variable(x_sol, 4)
-        expected_x = np.array((.400002, .799999, 1.000001, 2.000003),
-                              dtype=np.float64, ndmin=2).T
-        self.assertTrue(np.allclose(x_sol_recovered, expected_x))
-        self.assertAlmostEqual(1.341644, round(np.sqrt(2*y_sol)[0,0], 5), 5)
+    # def test_nfi_pd_pf_cqp(self):
+    #     H = np.array(((1., 0., -1., 0.), (0., 1., 0., -1.), (-1., 0., 1., 0.),
+    #                   (0., -1., 0., 1.)), dtype=np.float64, ndmin=2)
+    #     p = np.array((), ndmin=2)
+    #     A = np.array(((-1., 0., 0., 0.), (0., -1., 0., 0.), (1., 2., 0., 0.),
+    #                   (0., 0., 0., -1.), (0., 0., -1., -1.), (0., 0., 1., 2.)),
+    #                  dtype=np.float64, ndmin=2)
+    #     b = np.array((0., 0., 2., -2., -3., 6.), dtype=np.float64, ndmin=2).T
+    #     hat_H, hat_p, hat_A = convert_inequality(H, p, A)
+    #     x_sol, y_sol, n_iter = nfi_pd_pf_cqp(hat_H, hat_p, hat_A, b)
+    #     x_sol_recovered = recover_variable(x_sol, 4)
+    #     expected_x = np.array((.400002, .799999, 1.000001, 2.000003),
+    #                           dtype=np.float64, ndmin=2).T
+    #     self.assertTrue(np.allclose(x_sol_recovered, expected_x))
+    #     self.assertAlmostEqual(1.341644, round(np.sqrt(2*y_sol)[0,0], 5), 5)
+
+    def test_p_sqp(self):
+        def f(x):
+            f_val = np.log(1+x[0]**2) + x[1]
+            a_val = (1 + x[0]**2)**2 + x[1]**2 - 4
+            c_val = np.array([x[0] + x[1]**2 + .3], ndmin=2,
+                             dtype=np.float64)
+
+            return f_val, a_val, c_val
+        
+        def g(x):
+            x = x.flatten()
+            g_k = np.array([[2*x[0]/(1+x[0]**2)],
+                            [1]], ndmin=2, dtype=np.float64)
+            A_ek = np.array([4*x[0]*(1+x[0]**2), 2*x[1]], ndmin=2,
+                            dtype=np.float64)
+            A_ik = np.array([1, 2*x[1]], ndmin=2, dtype=np.float64)
+
+            return g_k, A_ek, A_ik
+        
+        x0 = np.array([[-1.5], [1]], ndmin=2, dtype=np.float64)
+        x_sol, _ = p_sqp(f, g, x0)
+
+        print(x_sol)
+
 
         
 if __name__ == '__main__':

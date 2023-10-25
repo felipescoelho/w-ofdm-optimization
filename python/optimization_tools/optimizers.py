@@ -19,6 +19,7 @@ from ofdm_utils import (
 from .utils import (reduce_variable_tx, reduce_variable_rx, gen_constraints_tx,
                     gen_constraints_rx, gen_constraints_tx_rx)
 from .quadratic_programming import quadratic_solver
+from .seq_quadratic_programmin import sqp_solver
 
 
 def optimization_fun(data:tuple):
@@ -535,12 +536,12 @@ class OptimizerTxRx:
         m1 = np.arange(0, 9, 1)
         x = np.zeros((len(m0)*len(m1), 1))
         for k in range(len(x)):
-            x[k] = m0[np.floor(k/9)]*m1[k - int(9*np.floor(k/9))]
-        A = gen_constraints_tx_rx(self.tail_tx_len, self.tail_rx_len)
+            x[k] = m0[int(np.floor(k/9))]*m1[k - int(9*np.floor(k/9))]
+        A, a = gen_constraints_tx_rx(self.tail_tx_len, self.tail_rx_len)
         # A, b, C, d = gen_constraints_tx_rx(self.tail_tx_len, self.tail_rx_len)
         import pdb; pdb.set_trace()
         p = np.zeros((H_mat.shape[0], 1), dtype=np.float64)
-        x, n_iter = quadratic_solver(H_mat, p, A, b, C, d, epsilon=1e-9)
+        x, n_iter = sqp_solver(H_mat, p, A, b, C, d, epsilon=1e-9)
 
         return x, n_iter
 

@@ -45,7 +45,7 @@ def sqp_solver(H:np.ndarray, p:np.ndarray, A:np.ndarray, a: np.ndarray,
         """
         a_k = x.T@A@x + x.T@a - b
         c_k = C@x - d
-        f_k = x.T@H@x + x.T@p
+        f_k = .5*x.T@H@x + x.T@p
         
         return f_k, a_k, c_k
     

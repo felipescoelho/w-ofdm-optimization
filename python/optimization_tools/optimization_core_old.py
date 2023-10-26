@@ -506,7 +506,7 @@ def linesearch_powell_mod(f, x_k, d_x, mu_k):
         ps[i] = fval + bt*sum(a_k**2) - mu_k.T@c_k
     idx = np.argmin(ps)
     a1 = aa[idx]
-    idx1 = np.nonzero(mu_k <= 1e-5)
+    idx1 = np.flatnonzero(mu_k <= 1e-5)
     s1 = len(idx1)
     if s1 == 0:
         
@@ -530,7 +530,7 @@ def linesearch_powell_mod(f, x_k, d_x, mu_k):
     return .95*np.min((a1, a2))
 
 
-def p_sqp(f, g, x0, epsilon=1e-6):
+def sqp_1e(f, g, x0, epsilon=1e-6):
     """Practical SQP algorithm.
     
     Based on Algorithm 15.6 in Antoniou, A. and Lu W. "Practical
@@ -571,7 +571,7 @@ def p_sqp(f, g, x0, epsilon=1e-6):
         d_x = qp_solve(Z_k, g_k, A_ek, -a_k, A_ik, -c_k,
                        np.zeros((n, 1), dtype=np.float64), epsilon)
         dd = A_ik @ (x_k + d_x) + c_k
-        idx = np.argwhere(dd <= 1e-5)
+        idx = np.flatnonzero(dd <= 1e-5)
         ssi = len(idx)
         mu_k = np.zeros((q, 1), dtype=np.float64)
         if ssi == 0:
@@ -608,6 +608,31 @@ def p_sqp(f, g, x0, epsilon=1e-6):
     return x_k, n_iter
 
 
+def sqp(f, g, x0, epsilon=1e-6):
+    """Practical SQP algorithm.
+    
+    Based on Algorithm 15.6 in Antoniou, A. and Lu W. "Practical
+    Optimization: Algorithms and Engineering Applications", 2nd Ed.,
+    Springer, 2021
+    
+    Parameters
+    ----------
+    f : function
+        The function we want to optimize.
+    g : function
+        The gradient of our function.
+    x0 : np.ndarray
+        Initial point for our algorithm.
+    epsilon : float
+        Threshold for stop criterion.
+
+    Return
+    ------
+    x_k : np.ndarray
+        Solution.
+    n_ter : int
+        Number of iterations.
+    """
 
 
 # EoF

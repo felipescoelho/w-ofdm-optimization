@@ -52,7 +52,7 @@ def var_trans_equality(H:np.ndarray, p:np.ndarray, A:np.ndarray,
         Converted input vector.
     hat_C : np.ndarray
         Converted linear inequality constraints.
-    hat_D : np.ndarray
+    hat_d : np.ndarray
         Converted values for linear inequality contraints.
     """
 
@@ -63,15 +63,13 @@ def var_trans_equality(H:np.ndarray, p:np.ndarray, A:np.ndarray,
     Q_1 = Q[0:n_cols, 0:n_rows]
     Q_2 = Q[0:n_cols, n_rows:n_cols]
 
-    hat_H = np.matmul(Q_2.T, np.matmul(H, Q_2))
-    hat_p = np.matmul(Q_2.T, (np.matmul(H, np.matmul(Q_1, np.matmul(
-        np.linalg.inv(R).T, b
-    ))) + p))
+    hat_H = Q_2.T@H@Q_2
+    hat_p = Q_2.T@(H@Q_1@np.linalg.inv(R).T@b + p)
 
     if C is None and d is None:
         
         return hat_H, hat_p
-    
+
     hat_C = C @ Q_2
     hat_d = d - C@Q_1@np.linalg.inv(R).T @ b
 

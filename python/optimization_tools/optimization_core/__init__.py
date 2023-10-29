@@ -8,11 +8,11 @@ Oct 25, 2023
 
 __all__ = ['pd_pf_cqp', 'nfi_ip_mlc', 'nfi_pd_pf_cqp',
            'var_trans_equality', 'recover_var_eq_trans',
-           'slack_var_inequality', 'recover_var_inequality', 'scp']
+           'slack_var_inequality', 'recover_var_inequality', 'scp', 'pd_pf_sdp']
 
 
-from .nonconvex_gen import scp
-from .convex_qp import pd_pf_cqp, nfi_ip_mlc, nfi_pd_pf_cqp
+from .nonconvex_gen import scp, sqp_basic
+from .qp_sdp_socp import (pd_pf_cqp, nfi_ip_mlc, nfi_pd_pf_cqp, pd_pf_sdp)
 from .utils import (var_trans_equality, recover_var_eq_trans,
                     slack_var_inequality, recover_var_inequality)
 

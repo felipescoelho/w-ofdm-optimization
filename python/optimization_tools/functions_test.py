@@ -13,7 +13,7 @@ import numpy as np
 import unittest
 from optimization_core import (
     var_trans_equality, recover_var_eq_trans, pd_pf_cqp, nfi_pd_pf_cqp,
-    slack_var_inequality, recover_var_inequality, pd_pf_sdp
+    slack_var_inequality, recover_var_inequality, pd_pf_sdp, pc_sdp
 )
 
 
@@ -144,13 +144,123 @@ class TestOptimizationAlgorithms(unittest.TestCase):
                        [.4, -.6, 1]], ndmin=2, dtype=np.float64)
         epsilon = 1e-3
         X, y, S, n_iter = pd_pf_sdp([A1, A2, A3, A4], b, C, (X0, y0, S0),
-                                    gamma=.95, sigma=None, epsilon=1e-3)
+                                    .9, None, epsilon)
         y_exp = np.array([[-.392921], [-.599995], [.399992], [3.000469]],
                          dtype=np.float64)
-        print(n_iter)
+        
+        self.assertTrue(np.allclose(y, y_exp, rtol=1e-5, atol=1e-5))
+        print('Example 13.5: OK.')
+
+    def test_example_13_6(self):
+        """
+        Example 13.6 from Antoniou, A. and Lu W. "Practical
+        Optimization: Algorithms and Engineering Applications", 2nd Ed.,
+        Springer, 2021.
+        """
+
+        def diag(x0, x1, x2):
+            n_row0, n_col0 = x0.shape
+            n_row1, n_col1 = x1.shape
+            n_row2, n_col2 = x2.shape
+
+            y = np.vstack((
+                np.hstack((x0, np.zeros((n_row0, n_col1+n_col2)))),
+                np.hstack((np.zeros((n_row1, n_col0)), x1, np.zeros((n_row1, n_col2)))),
+                np.hstack((np.zeros((n_row2, n_col0+n_col1)), x2))
+            ))
+
+            return y
+        
+        # Define problem as SDP:
+        q1 = np.array([[-1/2], [0]], ndmin=2, dtype=np.float64)
+        q2 = np.array([[-44], [-52]], ndmin=2, dtype=np.float64)
+        H_hat = np.array([[1, 0, -1, 0], [0, -1, 0, 1], [0, 0, 0, 0],
+                          [0, 0, 0, 0]], ndmin=2, dtype=np.float64)
+        Q1_hat = np.array([[1/2, 0], [0, 1]], ndmin=2, dtype=np.float64)
+        Q2_hat = np.array([[2, 2], [-1, 1]], ndmin=2, dtype=np.float64)
+        b = np.array([[0], [0], [0], [0], [1]], ndmin=2, dtype=np.float64)
+        A1 = -diag(
+            np.vstack((
+                np.hstack((np.zeros((4, 4)), H_hat[:, 0:1])),
+                np.hstack((H_hat[:, 0:1].T, np.array([[0]], ndmin=2,
+                                                      dtype=np.float64)))
+            )),
+            np.vstack((
+                np.hstack((np.zeros((2, 2)), Q1_hat[:, 0:1])),
+                np.hstack((Q1_hat[:, 0:1].T, -q1[0:1, 0:1]))
+            )),
+            np.zeros((3, 3))
+        )
+        A2 = -diag(
+            np.vstack((
+                np.hstack((np.zeros((4, 4)), H_hat[:, 1:2])),
+                np.hstack((H_hat[:, 1:2].T, np.array([[0]], ndmin=2,
+                                                     dtype=np.float64)))
+            )),
+            np.vstack((
+                np.hstack((np.zeros((2, 2)), Q1_hat[:, 1:2])),
+                np.hstack((Q1_hat[:, 1:2].T, -q1[1:2, 0:1]))
+            )),
+            np.zeros((3, 3))
+        )
+        A3 = -diag(
+            np.vstack((
+                np.hstack((np.zeros((4, 4)), H_hat[:, 2:3])),
+                np.hstack((H_hat[:, 2:3].T, np.array([[0]], ndmin=2,
+                                                     dtype=np.float64)))
+            )),
+            np.zeros((3, 3)),
+            np.vstack((
+                np.hstack((np.zeros((2, 2)), Q2_hat[:, 0:1])),
+                np.hstack((Q2_hat[:, 0:1].T, -q2[0:1, 0:1]))
+            ))
+        )
+        A4 = -diag(
+            np.vstack((
+                np.hstack((np.zeros((4, 4)), H_hat[:, 3:4])),
+                np.hstack((H_hat[:, 3:4].T, np.array([[0]], ndmin=2,
+                                                     dtype=np.float64)))
+            )),
+            np.zeros((3, 3)),
+            np.vstack((
+                np.hstack((np.zeros((2, 2)), Q2_hat[:, 1:2])),
+                np.hstack((Q2_hat[:, 1:2].T, -q2[1:2, 0:1]))
+            ))
+        )
+        A5 = -diag(
+            np.vstack((
+                np.hstack((np.zeros((4, 4)), np.zeros((4, 1)))),
+                np.hstack((np.zeros((1, 4)), np.array([[1]], ndmin=2,
+                                                      dtype=np.float64)))
+            )), np.zeros((3, 3)), np.zeros((3, 3))
+        )
+        C = -diag(
+            np.vstack((
+                np.hstack((np.eye(4), np.zeros((4, 1)))),
+                np.zeros((1, 5))
+            )),
+            np.vstack((
+                np.hstack((np.eye(2), np.zeros((2, 1)))),
+                np.hstack((np.zeros((1, 2)), np.array([[3/4]], ndmin=2,
+                                                      dtype=np.float64)))
+            )),
+            np.vstack((
+                np.hstack((np.eye(2), np.zeros((2, 1)))),
+                np.hstack((np.zeros((1, 2)), np.array([[-140]], ndmin=2,
+                                                      dtype=np.float64)))
+            ))
+        )
+        X02 = np.array([[1, 0, -.5], [0, 1, 0], [-.5, 0, 1]], ndmin=2,
+                       dtype=np.float64)
+        X03 = np.array([[180, 0, -12], [0, 60, -2], [-12, -2, 1]], ndmin=2,
+                       dtype=np.float64)
+        X0 = diag(np.eye(5), X02, X03)
+        y0 = np.array([[1], [0], [2], [4], [20]], ndmin=2, dtype=np.float64)
+        A = [A1, A2, A3, A4, A5]
+        S0 = C - sum([y0[i]*A[i] for i in range(5)])
+        
+        X, y, S, n_iter = pc_sdp(A, b, C, (X0, y0, S0), gamma=.9, epsilon=1e-3)
         print(y)
-
-
 
     def _example_15_1(self):
         """

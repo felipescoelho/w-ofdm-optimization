@@ -175,4 +175,96 @@ def recover_var_inequality(hat_x:np.ndarray, var_len:int):
     return x
 
 
+def __svec(K:np.ndarray):
+    """
+    Symmetric Kronecker vectorization. (simplifies computation)
+    
+    Converts a symmetric matrix into a vector, eliminating redundant
+    elements from the symmetric matrix.
+
+    Parameters
+    ----------
+    K : np.ndarray
+        n x n symmetric matrix.
+
+    Returns
+    -------
+    k : np.ndarray
+        Vectorized symmetric matrix with length n*(n+1)/2.
+    """
+
+    n = K.shape[0]
+    nn = int(n*(n+1)/2)
+    aux = np.sqrt(2)
+    k = np.zeros((nn, 1), dtype=np.float64)
+    for idx in range(n-1):
+        start = int(n*idx)
+        end = int((n-1)*idx + n)
+        if start < nn:
+            k[start] = K[idx, idx]
+            k[start+1:end, 0] = aux*K[idx+1:, idx]
+    k[-1] = K[-1, -1]
+
+    return k
+
+
+def __mat(k:np.ndarray):
+    """
+    Symmetric Kronecker Matrix recover.
+
+    Parameters
+    ----------
+    k : np.ndarray
+        Vectorized symmetric matrix
+
+    K : np.ndarray
+        Recovered symmetric matrix.
+    """
+
+    nn = len(k)
+    n = int((-1+np.sqrt(1+8*nn))/2)
+    aux = 1/np.sqrt(2)
+    K = np.zeros((n, n), dtype=np.float64)
+    for idx in range(n-1):
+        start = int(n*idx)
+        end = int((n-1)*idx + n)
+        if start < nn:
+            K[idx, idx] = k[start, 0]
+            K[idx+1:, idx] = aux*k[start+1:end, 0]
+    K[-1, -1] = k[-1]
+    K += K.T - np.diag(np.diag(K))
+
+    return K
+
+
+def __symmetric_kron(M:np.ndarray, N:np.ndarray):
+    """
+    Kronecker product of symmetric matrices.
+    
+    Parameters
+    ----------
+    M : np.ndarray
+    N : np.ndarray
+
+    Returns
+    -------
+    Y : np.ndarray
+    """
+
+    n = M.shape[0]
+    nn = int(n*(n+1)/2)
+    aux = 1/np.sqrt(2)
+    Y = np.zeros((nn, nn), dtype=np.float64)
+    idx = -1
+    for i in range(n):
+        for j in range(i, n):
+            K = np.zeros((n, n), dtype=np.float64)
+            idx += 1
+            K[i, j] = 1 if i == j else aux
+            K[j, i] = 1 if i == j else aux
+            Y[:, idx] = __svec(.5*(N@K@M.T + M@K@N.T)).flatten()
+    
+    return Y
+
+
 # EoF

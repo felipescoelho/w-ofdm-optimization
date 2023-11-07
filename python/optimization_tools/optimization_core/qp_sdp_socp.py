@@ -8,6 +8,7 @@ Out 25, 2023
 
 
 import numpy as np
+from .utils import __svec, __mat, __symmetric_kron
 
 
 def pd_pf_cqp(H:np.ndarray, p:np.ndarray, A:np.ndarray, b:np.ndarray,
@@ -282,12 +283,16 @@ def nfi_ip_mlc(K_11:np.ndarray, K_12:np.ndarray, K_21:np.ndarray,
     return x_sol, n_iter
 
 
-def pd_pf_sdp(A, b, C, init_set, gamma, sigma=None, epsilon=1e-6):
+def pd_pf_sdp(A_i, b, C, init_set, gamma, sigma=None, epsilon=1e-6):
     """Primal-dual path-following algorithm for SDP problem.
 
     From Algorithm 13.5 in Antoniou, A. and Lu W. "Practical
     Optimization: Algorithms and Engineering Applications", 2nd Ed.,
     Springer, 2021
+
+    Solves:
+    min C X
+    s.t. A X = b
 
     Parameters
     ----------
@@ -298,92 +303,27 @@ def pd_pf_sdp(A, b, C, init_set, gamma, sigma=None, epsilon=1e-6):
     gamma : float
     sigma : float (default=None)
     epsilon : float (default=1e-6)
+
+    Returns
+    -------
+    X : np.ndarray
+    y : np.ndarray
+    S : np.ndarray
+    n_iter : int
     """
-    
-    def __svec(K:np.ndarray):
-        """
-        Symmetric Kronecker vectorization. (simplifies computation)
-        
-        Converts a symmetric matrix into a vector, eliminating redundant
-        elements from the symmetric matrix.
-
-        Parameters
-        ----------
-        K : np.ndarray
-            n x n symmetric matrix.
-
-        Returns
-        -------
-        k : np.ndarray
-            Vectorized symmetric matrix with length n*(n+1)/2.
-        """
-
-        n = K.shape[0]
-        nn = int(n*(n+1)/2)
-        aux = np.sqrt(2)
-        k = np.zeros((nn, 1), dtype=np.float64)
-        for idx in range(n-1):
-            start = int(n*idx)
-            end = int((n-1)*idx + n)
-            k[start] = K[idx, idx]
-            k[start+1:end, 0] = aux*K[idx+1:, idx]
-        k[-1] = K[-1, -1]
-
-        return k
-    
-    def __mat(k:np.ndarray):
-        """
-        Symmetric Kronecker Matrix recover.
-
-        Parameters
-        ----------
-        k : np.ndarray
-            Vectorized symmetric matrix
-
-        K : np.ndarray
-            Recovered symmetric matrix.
-        """
-
-        nn = len(k)
-        n = int((-1+np.sqrt(1+8*nn))/2)
-        aux = 1/np.sqrt(2)
-        K = np.zeros((n, n), dtype=np.float64)
-        for idx in range(n-1):
-            start = int(n*idx)
-            end = int((n-1)*idx + n)
-            K[idx, idx] = k[start, 0]
-            K[idx+1:, idx] = aux*k[start+1:end, 0]
-        K[-1, -1] = k[-1]
-        K += K.T - np.diag(np.diag(K))
-
-        return K
-    
-    def __symmetric_kron(M, N):
-        """Kronecker product of symmetric matrices."""
-        n = M.shape[0]
-        nn = int(n*(n+1)/2)
-        aux = 1/np.sqrt(2)
-        Y = np.zeros((nn, nn), dtype=np.float64)
-        idx = -1
-        for i in range(n):
-            for j in range(i, n):
-                K = np.zeros((n, n), dtype=np.float64)
-                idx += 1
-                K[i, j] = 1 if i == j else aux
-                K[j, i] = 1 if i == j else aux
-                Y[:, idx] = __svec(.5*(N@K@M.T + M@K@N.T)).flatten()
-        
-        return Y
     
     # Initialization:
     n = C.shape[0]
     if sigma is None:
         sigma = n/(15*np.sqrt(n) + n)
     p = len(b)
-    X, y, S = init_set
-    A_in = np.zeros((p, int(n*(n+1)/2)), dtype=np.float64)
-    for idx, Ap in enumerate(A):
-        A_in[idx, :] = __svec(Ap).T  # 13.81a
+    X0, y0, S0 = init_set
+    X = X0.copy()
+    y = y0.copy()
+    S = S0.copy()
+    A = np.zeros((p, int(n*(n+1)/2)), dtype=np.float64)
+    for idx, Ap in enumerate(A_i):
+        A[idx, :] = __svec(Ap).T  # 13.81a
     I = np.eye(n)
     gap = np.trace(X@S)/n
     n_iter = 0
@@ -393,14 +333,14 @@ def pd_pf_sdp(A, b, C, init_set, gamma, sigma=None, epsilon=1e-6):
         E = __symmetric_kron(S, I)  # 13.84c
         F = __symmetric_kron(X, I)  # 13.84d
         x = __svec(X)  # 13.85b
-        rd = __svec(C - S - __mat(A_in.T@y))  # 13.85f
-        rp = b - A_in@x  # 13.85c
+        rd = __svec(C - S + __mat(A.T@y))  # 13.85f
+        rp = b - A@x  # 13.85c
         rc = __svec(tau*I - .5*(X@S + S@X))  # 13.84e
         E_inv = np.linalg.inv(E)
-        M = A_in@E_inv@F@A_in.T
-        Dy = np.linalg.inv(M)@(rp + A_in@E_inv@(F@rd - rc))  # 13.87c
-        Dx = -E_inv@(F@(rd - A_in.T@Dy) - rc)  # 13.87a
-        Ds = rd - A_in.T@Dy
+        M = A@E_inv@F@A.T
+        Dy = -np.linalg.inv(M)@(rp + A@E_inv@(F@rd - rc))  # 13.87c
+        Dx = -E_inv@(F@(rd + A.T@Dy) - rc)  # 13.87a
+        Ds = rd + A.T@Dy
         DX = __mat(Dx)
         DS = __mat(Ds)
         Xk_hat_inv = np.linalg.inv(np.linalg.cholesky(X))
@@ -416,41 +356,89 @@ def pd_pf_sdp(A, b, C, init_set, gamma, sigma=None, epsilon=1e-6):
 
     return X, y, S, n_iter
 
-def pc_sdp():
+def pc_sdp(A_list, b, C, init_set, gamma, epsilon=1e-6):
     """Predictor-corrector algorithm for SDP problems.
     
-    From Algorithm 13.5 in Antoniou, A. and Lu W. "Practical
+    From Algorithm 13.6 in Antoniou, A. and Lu W. "Practical
     Optimization: Algorithms and Engineering Applications", 2nd Ed.,
     Springer, 2021
 
     Parameters
     ----------
-
-    Returns
-    -------
     A : list
     b : np.ndarray
     C : np.ndarray
     init_set : tuple
-    gamma : float
+    gamma : float (.9 <= gamma <= .99 is good practice)
     sigma : float (default=None)
     epsilon : float (default=1e-6)
+
+    Returns
+    -------
+    X : np.ndarray
+    y : np.ndarray
+    S : np.ndarray
+    n_iter : int
     """
 
     n = C.shape[0]
-    if sigma is None:
-        sigma = n/(15*np.sqrt(n) + n)
     p = len(b)
-    X, y, S = init_set
-    A_in = np.zeros((p, int(n*(n+1)/2)), dtype=np.float64)
-    for idx, Ap in enumerate(A):
-        A_in[idx, :] = __svec(Ap).T  # 13.81a
+    X0, y0, S0 = init_set
+    X = X0.copy()
+    y = y0.copy()
+    S = S0.copy()
+    A = np.zeros((p, int(n*(n+1)/2)), dtype=np.float64)
+    for idx, Ap in enumerate(A_list):
+        A[idx, :] = __svec(Ap).T  # 13.81a
     I = np.eye(n)
     gap = np.trace(X@S)/n
+    print(gap)
     n_iter = 0
     while gap > epsilon:
-        pass
-
+        # Predictor
+        print(gap)
+        n_iter += 1
+        E = __symmetric_kron(S, I)  # 13.84c
+        F = __symmetric_kron(X, I)  # 13.84d
+        x = __svec(X)  # 13.85b
+        rd = __svec(C - S + __mat(A.T@y))  # 13.85f
+        rp = b - A@x  # 13.85c
+        rc = __svec(- .5*(X@S + S@X))  # 13.94
+        E_inv = np.linalg.inv(E)
+        M = A@E_inv@F@A.T
+        Dy = -np.linalg.inv(M)@(rp + A@E_inv@(F@rd - rc))  # 13.87c
+        Dx = -E_inv@(F@(rd + A.T@Dy) - rc)  # 13.87a
+        Ds = rd + A.T@Dy
+        DX = __mat(Dx)
+        DS = __mat(Ds)
+        Xk_hat_inv = np.linalg.inv(np.linalg.cholesky(X))
+        Sk_hat_inv = np.linalg.inv(np.linalg.cholesky(S))
+        min_eig_x = np.min(np.linalg.eigvals(Xk_hat_inv@DX@Xk_hat_inv.T))
+        min_eig_s = np.min(np.linalg.eigvals(Sk_hat_inv@DS@Sk_hat_inv.T))
+        alpha_p = 1 if min_eig_x >= 0 else np.min((1, -gamma/min_eig_x))  # 13.95a
+        beta_p = 1 if min_eig_s >= 0 else np.min((1, -gamma/min_eig_s))  # 13.95b
+        sigma = (np.trace((X+alpha_p*DX)@(S + beta_p*DS))/np.trace(X@S))**3
+        tau = sigma*gap  # 13.88
+        # Corrector
+        rc = __svec(tau*I - .5*(X@S + S@X + DX@DS + DS@DX))
+        Dy = -np.linalg.inv(M)@(rp + A@E_inv@(F@rd - rc))  # 13.87c
+        Dx = -E_inv@(F@(rd + A.T@Dy) - rc)  # 13.87a
+        Ds = rd + A.T@Dy
+        DX = __mat(Dx)
+        DS = __mat(Ds)
+        Xk_hat_inv = np.linalg.inv(np.linalg.cholesky(X))
+        Sk_hat_inv = np.linalg.inv(np.linalg.cholesky(S))
+        min_eig_x = np.min(np.linalg.eigvals(Xk_hat_inv@DX@Xk_hat_inv.T))
+        min_eig_s = np.min(np.linalg.eigvals(Sk_hat_inv@DS@Sk_hat_inv.T))
+        alpha_c = 1 if min_eig_x >= 0 else np.min((1, -gamma/min_eig_x))  # 13.100a
+        beta_c = 1 if min_eig_s >= 0 else np.min((1, -gamma/min_eig_s))  # 13.100b
+        X += alpha_c*DX  # 13.99a
+        y += beta_c*Dy  # 13.99b
+        S += beta_c*DS  # 13.99c
+        gap = np.trace(X@S)/n
+        
+        
+    return X, y, S, n_iter
 
 
 # EoF

@@ -41,14 +41,16 @@ def simulation_fun(data:tuple):
     """
 
     system_design, dft_len, cp_len, tail_tx, tail_rx = data[0:5]
-    channel_path, window_path, ensemble, snr_arr, no_symbols = data[5:]
+    channel_path, window_path, ensemble, snr_arr, no_symbols, folder_path = data[5:]
 
     window_file_path = os.path.join(
         window_path, f'{system_design}_{cp_len}.npy'
     )
     channel_models = np.load(channel_path)
     if system_design in ['WOLA', 'CPW']:
-        win_tail_tx, win_tail_rx = np.load(window_file_path)
+        win_tail = np.load(window_file_path)
+        win_tail_tx = win_tail[:tail_tx+1].reshape(tail_tx+1, 1)
+        win_tail_rx = win_tail[tail_tx+1:].reshape(int(tail_rx/2+1), 1)
         cs_len = int(tail_tx + tail_rx/2) if system_design == 'WOLA' else tail_tx
     elif system_design in ['wtx', 'CPwtx']:
         win_tail_tx = np.load(window_file_path)
@@ -61,7 +63,8 @@ def simulation_fun(data:tuple):
     win_tx = np.diagflat(reduce_variable_tx(dft_len, cp_len, cs_len,
                                             tail_tx)@win_tail_tx)
     win_rx = np.diagflat(reduce_variable_rx(dft_len, tail_rx)@win_tail_rx)
-    sim_model = wOFDMSystem(system_design, dft_len, cp_len, tail_tx, tail_rx)
+    sim_model = wOFDMSystem(system_design, dft_len, cp_len, tail_tx, tail_rx,
+                            folder_path)
     sim_model.run_simulation(channel_models, win_tx, win_rx, ensemble, snr_arr,
                              no_symbols)
 
@@ -235,7 +238,7 @@ class wOFDMSystem:
         return ser, ser_rc
         
     def __init__(self, system_design:str, dft_len:int, cp_len:int, tail_tx:int,
-                 tail_rx:int):
+                 tail_rx:int, folder_path:str):
         """
         Parameters
         ----------
@@ -256,6 +259,7 @@ class wOFDMSystem:
         self.cp_len = cp_len
         self.tail_tx = tail_tx
         self.tail_rx = tail_rx
+        self.folder_path = folder_path
         if self.name == 'wtx':
             self.cs_len = self.tail_tx
             self.rm_len = self.cp_len
@@ -329,7 +333,13 @@ class wOFDMSystem:
             ensemble, snr_arr, self.tail_tx, ser_flag=True
         )
 
-        print(ser_opt)
-        print(ser_rc)
+        path_to_ser = os.path.join(self.folder_path, 'ser')
+        os.makedirs(path_to_ser, exist_ok=True)
+        optimal_path = os.path.join(path_to_ser,
+                                    f'opt_{self.name}_{self.cp_len}.npy')
+        raised_cosine_path = os.path.join(path_to_ser,
+                                          f'rc_{self.name}_{self.cp_len}.npy')
+        np.save(optimal_path, ser_opt)
+        np.save(raised_cosine_path, ser_rc)
 
 # EoF

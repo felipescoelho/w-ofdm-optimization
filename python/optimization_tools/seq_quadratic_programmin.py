@@ -7,7 +7,7 @@ Oct 23, 2023
 """
 
 import numpy as np
-from .optimization_core import p_sqp
+# from .optimization_core import p_sqp
 
 
 def sqp_solver(H:np.ndarray, p:np.ndarray, A:np.ndarray, a: np.ndarray,
@@ -60,4 +60,4 @@ def sqp_solver(H:np.ndarray, p:np.ndarray, A:np.ndarray, a: np.ndarray,
 
         return g_k, A_ek, A_ik
     
-    x_sol, _, n_iter = p_sqp(f, g, eta, tau, rho, (H.shape[0], ))
+    # x_sol, _, n_iter = p_sqp(f, g, eta, tau, rho, (H.shape[0], ))

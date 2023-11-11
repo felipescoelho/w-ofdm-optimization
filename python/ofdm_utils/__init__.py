@@ -1,4 +1,5 @@
-"""Module with utility functions for simulation."""
+"""Module with utilitary functions for simulation."""
+
 
 __all__ = ['gen_add_redundancy_matrix', 'gen_idft_matrix', 'gen_rc_window_tx',
            'gen_rm_redundancy_matrix', 'gen_rc_window_rx', 'gen_dft_matrix',
@@ -13,3 +14,6 @@ from .receiver import (gen_rm_redundancy_matrix, gen_rc_window_rx,
                        gen_dft_matrix)
 from .channel import gen_channel_tensor
 from .wofdm_simulation import simulation_fun
+
+
+# EoF

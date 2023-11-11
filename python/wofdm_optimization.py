@@ -44,6 +44,11 @@ def arg_parser():
                         help='SNR for the simulation ([start, ]stop, [step).')
     parser.add_argument('--no_symbols', type=int, default=16,
                         help='Number of symbols in a frame.')
+    parser.add_argument('--simulation_path', type=str,
+                        default='simulation_results',
+                        help='Folder to save results.')
+    parser.add_argument('--figures_path', type=str, default='figures_path',
+                        help='Folder to save figures.')
 
     return parser
 
@@ -81,7 +86,8 @@ if __name__ == '__main__':
         np.save(channel_path, channel_tdl, fix_imports=False)
     elif args.mode == 'run_opt':
         if args.figures:
-            pass
+            from figures_utils import gen_figures_opt
+            gen_figures_opt(args.window_path)
         else:
             from optimization_tools import optimization_fun
             os.makedirs(args.window_path, exist_ok=True)
@@ -112,7 +118,8 @@ if __name__ == '__main__':
                 else 0
             data_list = [(sys, dft_len, cp, tail_tx_fun(8, sys),
                           tail_rx_fun(10, sys), channel_path, args.window_path,
-                          args.monte_carlo, snr_arr, args.no_symbols)
+                          args.monte_carlo, snr_arr, args.no_symbols,
+                          args.simulation_path)
                          for sys in sys_list for cp in cp_list]
             if args.parallel:
                 with Pool(cpu_count()) as pool:

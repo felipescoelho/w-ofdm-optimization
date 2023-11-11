@@ -14,12 +14,13 @@ from scipy.linalg import issymmetric
 from ofdm_utils import (
     gen_idft_matrix, gen_add_redundancy_matrix, gen_rm_redundancy_matrix,
     gen_overlap_and_add_matrix, gen_dft_matrix, gen_circ_shift_matrix,
-    gen_channel_tensor
+    gen_channel_tensor, gen_rc_window_rx, gen_rc_window_tx
 )
 from .utils import (reduce_variable_tx, reduce_variable_rx, gen_constraints_tx,
-                    gen_constraints_rx, gen_constraints_tx_rx)
+                    gen_constraints_rx)
 from .quadratic_programming import quadratic_solver
 from .seq_quadratic_programmin import sqp_solver
+from scipy.optimize import minimize, NonlinearConstraint, LinearConstraint
 
 
 def optimization_fun(data:tuple):
@@ -55,18 +56,19 @@ def optimization_fun(data:tuple):
         var_len = int((1+tail_rx/2)*(tail_tx+1))
     
     chann_ten = opt_model.calculate_chann_matrices(channel_avg)
-    reg = 0
+    reg = 1e-3
     H_mat = opt_model.gen_hessian(chann_ten) + reg*np.eye(var_len)
     if not issymmetric(H_mat):
         print('Not symmetric! Applying correction H = (H + H.T)/2.')
         H_mat = .5*(H_mat + H_mat.T)
-    x, _ = opt_model.optimize(H_mat)
     
     os.makedirs(os.path.join(window_path, 'condition_number'), exist_ok=True)
     window_file_name = os.path.join(window_path, f'{system_design}_{cp_len}.npy')
     condition_number_file_name = os.path.join(
         window_path, 'condition_number', f'{system_design}_{cp_len}_{reg}.npy'
     )
+    x, _ = opt_model.optimize(H_mat)
+    print(x)
     np.save(window_file_name, x)
     np.save(condition_number_file_name, np.linalg.cond(H_mat))
 
@@ -214,7 +216,7 @@ class OptimizerTx:
         A, b, C, d = gen_constraints_tx(self.tail_len)
 
         p = np.zeros((1+self.tail_len, 1), dtype=np.float64)
-        x, n_iter = quadratic_solver(H_mat, p, A, b, C, d, epsilon=1e-9)
+        x, n_iter = quadratic_solver(H_mat, p, A, b, C, d, epsilon=1e-6)
 
         return x, n_iter
 
@@ -428,6 +430,249 @@ class OptimizerTxRx:
 
         return Q2_mat
 
+    @staticmethod
+    def gen_x0(dft_len, cp_len, cs_len, tail_tx_len, tail_rx_len):
+        """Method to generate initial point for optimization.
+        
+        Parameters
+        ----------
+        dft_len : int
+            Length of the DFT.
+        cp_len : int
+            Number of samples in cyclic prefix.
+        cs_len : int
+            Number of samples in cyclic suffix.
+        tail_tx_len : int
+            Transmitter tail lenght.
+        tail_rx_len : int
+            Receiver tail length.
+        
+        Returns
+        -------
+        x0 : np.ndarray
+            Initial point in feasible region.
+        """
+
+        K = int((tail_rx_len/2 + 1) * (tail_tx_len+1))
+        rc_tx = np.diag(gen_rc_window_tx(dft_len, cp_len, cs_len, tail_tx_len))
+        rc_rx = np.diag(gen_rc_window_rx(dft_len, tail_rx_len))
+        tail_tx = rc_tx[:tail_tx_len+1]
+        tail_rx = rc_rx[int(tail_rx_len/2):tail_rx_len+1]
+        x0 = np.zeros((K, 1), dtype=np.float64)
+        # import pdb; pdb.set_trace()
+        for k in range(K):
+            x0[k] = tail_rx[int(np.floor(k/(tail_tx_len+1)))] \
+                * tail_tx[int(k - (tail_tx_len+1)*np.floor(k/(tail_tx_len+1)))]
+        
+        return x0
+    
+    @staticmethod
+    def cost_fun(x, *args):
+        """Method to define cost function.
+        
+        Parameters
+        ----------
+        x : np.ndarray
+            Optimization variable.
+        *args : tuple
+            H_mat : np.ndarray
+                Hessian matrix.
+        
+        Returns
+        -------
+        y : np.ndarray
+            Interference power.
+        """
+        H_mat = args
+        y = .5 * x.T @ H_mat @ x
+
+        return y.flatten()
+    
+    @staticmethod
+    def jac_fun(x, *args):
+        """Method to calculate the Jacobian.
+        
+        Parameters
+        ----------
+        x : np.ndarray
+            Optimization variable.
+        *args : tuple
+            H_mat : np.ndarray
+                Hessian matrix.
+        
+        Returns
+        -------
+        grad : np.ndarray
+            Gradient vector.
+        """
+
+        H_mat = args
+        grad = H_mat @ x
+
+        return grad.flatten()
+    
+    @staticmethod
+    def hess_fun(x, *args):
+        """Method to input the hessian of the cost function.
+        
+        Parameters
+        ----------
+        x : np.ndarray
+            Optimization variable.
+        *args : tuple
+            H_mat : np.ndarray
+                Hessian matrix.
+        
+        Returns
+        -------
+        H_mat : np.ndarray
+            Hessian matrix.
+        """
+
+        H_mat = args
+
+        return H_mat
+    
+    @staticmethod
+    def eq_const(x):
+        """Method for equality constraints.
+
+        The constraints are defined considering the following values for
+        tail length (in samples):
+        tail_tx = 8
+        tail_rx = 10
+        
+        Parameters
+        ----------
+        x : np.ndarray
+            Optimization variable.
+            
+        Returns
+        -------
+        y : np.ndarray
+            Results of the functions.
+        """
+
+        tail_tx = 8
+        tail_rx = 10
+        n_constraints = int(tail_tx*tail_rx/2 + 1)
+        y = np.zeros((n_constraints, 1), dtype=np.float64)
+        # idx0 = np.array([1, 2, 3, 4, 5, 6, 7, 8], dtype=np.int8)
+        # idx1 = np.array([9, 18, 27, 36, 45], dtype=np.int8)
+        drop0 = [i for i in range(tail_tx+1)]
+        drop1 = [int((tail_tx+1)*i) for i in range(1, int(tail_rx/2 + 1))]
+        idx0_list = [i for i in range(int((tail_tx+1)*(tail_rx/2 + 1))) if i
+                     not in drop0+drop1]
+        idx1_list = int(tail_rx/2)*[i for i in range(1, tail_tx+1)]
+        idx2_list = [i for i in drop1 for _ in range(tail_tx)]
+        # for idx in range(1, n_constraints):
+        #     idx00 = idx0[idx - 1 - int(tail_tx*np.floor((idx-1)/(tail_tx+1)))]
+        #     idx11 = idx1[int(np.floor((idx-1)/(tail_rx/2 + 1)))]
+        #     print(idx00)
+        #     print(idx11)
+        #     y[idx] = x[idx00+idx11] - (x[idx00] * x[idx11])
+        y[0] = x[0] - 1
+        for idx, idx0 in enumerate(idx0_list):
+            y[idx+1] = x[idx0] - x[idx1_list[idx]]*x[idx2_list[idx]]
+
+        return y.flatten()
+    
+    @staticmethod
+    def jac_eq_const(x):
+        """Method for Jacobian of the equality constraints.
+        
+        Parameters
+        ----------
+        x : np.ndarray
+            Optimization variable.
+        
+        Returns
+        -------
+        y : np.ndarray
+            Jacobian of the functions.
+        """
+
+        tail_tx = 8
+        tail_rx = 10
+        n_constraints = int(tail_tx*tail_rx/2 + 1)
+        len_var = len(x)
+        y = np.zeros((n_constraints, len_var), dtype=np.float64)
+        # idx0 = np.array([1, 2, 3, 4, 5, 6, 7, 8], dtype=np.int8)
+        # idx1 = np.array([9, 18, 27, 36, 45], dtype=np.int8)
+        drop0 = [i for i in range(tail_tx+1)]
+        drop1 = [int((tail_tx+1)*i) for i in range(1, int(tail_rx/2 + 1))]
+        idx0_list = [i for i in range(int((tail_tx+1)*(tail_rx/2 + 1))) if i
+                     not in drop0+drop1]
+        idx1_list = int(tail_rx/2)*[i for i in range(1, tail_tx+1)]
+        idx2_list = [i for i in drop1 for _ in range(tail_tx)]
+        # for idx in range(1, n_constraints):
+        #     idx00 = idx0[int(np.floor(idx/(tail_tx)))]
+        #     idx11 = idx1[int(np.floor(idx/(tail_rx)))]
+        #     y[idx, idx00] = -x[idx11]
+        #     y[idx, idx11] = -x[idx00]
+        #     y[idx, idx00+idx11] = 1
+        y[0, 0] = 1
+        for idx, idx0 in enumerate(idx0_list):
+            y[idx+1, idx0] = 1
+            y[idx+1, idx1_list[idx]] = - x[idx2_list[idx]]
+            y[idx+1, idx2_list[idx]] = - x[idx1_list[idx]]
+
+        return y
+
+    @staticmethod
+    def ineq_const(x):
+        """Method for inequality constraints.
+        
+        Parameters
+        ----------
+        x : np.ndarray
+            Optimization variable.
+        
+        Returns
+        -------
+        y : np.ndarray
+            Results for the functions.
+        """
+
+        tail_tx = 8
+        tail_rx = 10
+        n_constraints = int(2*(tail_rx/2 + tail_tx))
+        y = np.zeros((n_constraints, 1), dtype=np.float64)
+        idx0 = np.array([1, 2, 3, 4, 5, 6, 7, 8, 9, 18, 27, 36, 45],
+                        dtype=np.int8)
+        for idx in range(int(n_constraints/2)):
+            y[idx] = 1 - x[idx0[idx]]
+            y[idx+int(n_constraints/2)] = x[idx0[idx]]
+
+        return y.flatten()
+
+    @staticmethod
+    def jac_ineq_const(x):
+        """Method to estimate the Jacobian of the inequality constraints.
+        
+        Parameters
+        ----------
+        x : np.ndarray
+            Optimization variable.
+        
+        Returns
+        -------
+        y : np.ndarray
+            An estimate for the Jacobian.
+        """
+
+        tail_tx = 8
+        tail_rx = 10
+        n_constraints = int(2*(tail_rx/2 + tail_tx))
+        y = np.zeros((n_constraints, len(x)), dtype=np.float64)
+        idx0 = np.array([1, 2, 3, 4, 5, 6, 7, 8, 9, 18, 27, 36, 45],
+                        dtype=np.int8)
+        for idx in range(int(n_constraints/2)):
+            y[idx, idx0[idx]] = -1
+            y[idx+int(n_constraints/2), idx0[idx]] = 1
+
+        return y
+
     def __init__(self, system_design:str, dft_len:int, cp_len:int,
                  tail_tx_len:int, tail_rx_len:int):
         """
@@ -532,18 +777,43 @@ class OptimizerTxRx:
         Method to run optimization using our algorithms.
         """
 
-        m0 = np.arange(0, 6, 1)
-        m1 = np.arange(0, 9, 1)
-        x = np.zeros((len(m0)*len(m1), 1))
-        for k in range(len(x)):
-            x[k] = m0[int(np.floor(k/9))]*m1[k - int(9*np.floor(k/9))]
-        A, a = gen_constraints_tx_rx(self.tail_tx_len, self.tail_rx_len)
+        # m0 = np.arange(0, 6, 1)
+        # m1 = np.arange(0, 9, 1)
+        # x = np.zeros((len(m0)*len(m1), 1))
+        # for k in range(len(x)):
+        #     x[k] = m0[int(np.floor(k/9))]*m1[k - int(9*np.floor(k/9))]
+        # A, a = gen_constraints_tx_rx(self.tail_tx_len, self.tail_rx_len)
         # A, b, C, d = gen_constraints_tx_rx(self.tail_tx_len, self.tail_rx_len)
-        import pdb; pdb.set_trace()
-        p = np.zeros((H_mat.shape[0], 1), dtype=np.float64)
-        x, n_iter = sqp_solver(H_mat, p, A, b, C, d, epsilon=1e-9)
+        # p = np.zeros((H_mat.shape[0], 1), dtype=np.float64)
+        # Methods for scipy's minimize:
+        args = (H_mat.real)
+        x0 = self.gen_x0(self.dft_len, self.cp_len, self.cs_len,
+                         self.tail_tx_len, self.tail_rx_len)
+        # eq_const = {'type': 'eq', 'fun': self.eq_const,
+        #             'jac': self.jac_eq_const}
+        # ineq_const = {'type': 'ineq', 'fun': self.ineq_const,
+        #               'jac': self.jac_ineq_const}
+        n_constraints = int(self.tail_rx_len/2 + self.tail_tx_len)
+        idx0 = np.array([1, 2, 3, 4, 5, 6, 7, 8, 9, 18, 27, 36, 45],
+                        dtype=np.int8)
+        A = np.zeros((n_constraints, len(x0)), dtype=np.float64)
+        lb = np.hstack((np.zeros((8,)), .5*np.ones((5,))))
+        ub = np.ones((n_constraints,))
+        for idx in range(n_constraints):
+            A[idx, idx0[idx]] = 1
+        ineq_const = LinearConstraint(A, lb, ub)
+        eq_const = NonlinearConstraint(self.eq_const, 0, 0, jac=self.jac_eq_const,
+                                       keep_feasible=True)
+        res = minimize(self.cost_fun, x0.flatten(), args=args,
+                       method='trust-constr', jac=self.jac_fun,
+                       hess=self.hess_fun, constraints=[eq_const, ineq_const],
+                       options={'xtol': 1e-6, 'verbose': 0, 'gtol': 1e-6})
+        x = res.x
+        x_tx = x[:9]
+        x_rx = x[[0, 9 ,18, 27, 36, 45]]
+        x_opt = np.hstack((x_tx, x_rx))
 
-        return x, n_iter
+        return x_opt, res.niter
 
 
 # EoF

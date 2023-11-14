@@ -85,16 +85,16 @@ if __name__ == '__main__':
         os.makedirs(channel_data_folder, exist_ok=True)
         np.save(channel_path, channel_tdl, fix_imports=False)
     elif args.mode == 'run_opt':
+        dft_len = 256
+        cp_list = [int(cp_len) for cp_len in args.cp_length.split(',')]
+        sys_list = args.systems.split(',')
         if args.figures:
             from figures_utils import gen_figures_opt
-            gen_figures_opt(args.window_path)
+            gen_figures_opt(args.window_path, dft_len, cp_list, sys_list)
         else:
             from optimization_tools import optimization_fun
             os.makedirs(args.window_path, exist_ok=True)
             # Simulation settings:
-            dft_len = 256
-            cp_list = [int(cp_len) for cp_len in args.cp_length.split(',')]
-            sys_list = args.systems.split(',')
             data_list = [(sys, dft_len, cp, channel_path, args.window_path) for
                          sys in sys_list for cp in cp_list]
             if args.parallel:

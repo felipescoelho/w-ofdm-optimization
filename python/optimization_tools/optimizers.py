@@ -37,10 +37,13 @@ def optimization_fun(data:tuple):
             cp_len : int
                 Length of the cyclic prefix.
     """
-    
+
     system_design, dft_len, cp_len, channel_path, window_path = data
     channel = np.load(channel_path)
     channel_avg = np.mean(channel, 1)
+    print('\n')
+    print(f'Working on {system_design} with CP = {cp_len}')
+    print('---------------------------------------------')
     if system_design in ['wtx', 'CPwtx']:
         tail_tx = 8
         opt_model = OptimizerTx(system_design, dft_len, cp_len, tail_tx)
@@ -56,23 +59,34 @@ def optimization_fun(data:tuple):
         var_len = int((1+tail_rx/2)*(tail_tx+1))
     
     chann_ten = opt_model.calculate_chann_matrices(channel_avg)
-    reg = 1e-3
-    H_mat = opt_model.gen_hessian(chann_ten) + reg*np.eye(var_len)
+    H_mat = opt_model.gen_hessian(chann_ten)
     if not issymmetric(H_mat):
-        print('Not symmetric! Applying correction H = (H + H.T)/2.')
+        print('The Hessian is not symmetric! \nApplying correction'
+              + ' H = (H + H.T)/2.')
         H_mat = .5*(H_mat + H_mat.T)
-    
+    cond_no = np.linalg.cond(H_mat)
+    print('---------------------------------------------')
+    print(f'Condition Number: {cond_no}.')
+    reg = 1e-3
+    H_reg = H_mat + reg*np.eye(var_len)
+    print(f'Regularized condition number: {np.linalg.cond(H_reg)}')
+    if cond_no > 1000:
+        x, _ = opt_model.optimize(H_reg)
+    else:
+        x, _ = opt_model.optimize(H_mat)
+    print('---------------------------------------------')
+    print(f'Resulting optimized vector:')
+    print(x)
+    print('\nDone.\n\n')
+    # Save results:
     os.makedirs(os.path.join(window_path, 'condition_number'), exist_ok=True)
     window_file_name = os.path.join(window_path, f'{system_design}_{cp_len}.npy')
     condition_number_file_name = os.path.join(
-        window_path, 'condition_number', f'{system_design}_{cp_len}_{reg}.npy'
+        window_path, 'condition_number', f'{system_design}_{cp_len}.npy'
     )
-    x, _ = opt_model.optimize(H_mat)
-    print(x)
-    np.save(window_file_name, x)
-    np.save(condition_number_file_name, np.linalg.cond(H_mat))
 
-    return 'ok'
+    np.save(window_file_name, x)
+    np.save(condition_number_file_name, cond_no)
 
 
 class OptimizerTx:
@@ -338,7 +352,7 @@ class OptimizerRx:
 
         A, b, C, d = gen_constraints_rx(self.tail_len)
         p = np.zeros((int(1 + self.tail_len/2), 1), dtype=np.float64)
-        x, n_iter = quadratic_solver(H_mat, p, A, b, C, d, epsilon=1e-9)
+        x, n_iter = quadratic_solver(H_mat, p, A, b, C, d, epsilon=1e-6)
 
         return x, n_iter
 

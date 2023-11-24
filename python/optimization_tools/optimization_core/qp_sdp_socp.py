@@ -279,6 +279,7 @@ def nfi_ip_mlc(K_11:np.ndarray, K_12:np.ndarray, K_21:np.ndarray,
         lamb = lamb + alpha_k*delta_lamb
         mu = mu + alpha_k*delta_mu
         gap = x_sol.T @ mu
+        # print(gap)
 
     return x_sol, n_iter
 

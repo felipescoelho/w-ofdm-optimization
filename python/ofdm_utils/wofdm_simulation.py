@@ -15,7 +15,6 @@ from .transmitter import (gen_add_redundancy_matrix, gen_idft_matrix,
 from .receiver import (gen_circ_shift_matrix, gen_dft_matrix,
                        gen_overlap_and_add_matrix, gen_rc_window_rx,
                        gen_rm_redundancy_matrix)
-from optimization_tools import reduce_variable_tx, reduce_variable_rx
 
 
 def simulation_fun(data:tuple):
@@ -39,6 +38,7 @@ def simulation_fun(data:tuple):
             window_path : str
                 Path to load windows.
     """
+    from optimization_tools import reduce_variable_tx, reduce_variable_rx
 
     system_design, dft_len, cp_len, tail_tx, tail_rx = data[0:5]
     channel_path, window_path, ensemble, snr_arr, no_symbols, folder_path = data[5:]

@@ -50,7 +50,7 @@ def gen_rc_window_rx(dft_len:int, tail_len:int):
     """
 
     tail_axis = np.arange(-(tail_len+1)/2 + 1, (tail_len+1)/2, 1)
-    rc_tail = np.sin(np.pi/2 * (.5 + tail_axis/tail_len))
+    rc_tail = np.sin(np.pi/2 * (.5 + tail_axis/tail_len))**2
     rc_window = np.hstack((rc_tail, np.ones((dft_len-tail_len,)), rc_tail[::-1]))
 
     return np.diag(rc_window)

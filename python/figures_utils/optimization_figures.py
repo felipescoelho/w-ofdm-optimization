@@ -12,6 +12,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import os
 from optimization_tools import reduce_variable_tx, reduce_variable_rx
+from ofdm_utils import interf_power
 
 
 def gen_figures_opt(folder_path:str, dft_len:int, cp_list:list, sys_list:list):
@@ -30,14 +31,18 @@ def gen_figures_opt(folder_path:str, dft_len:int, cp_list:list, sys_list:list):
     """
     tail_tx_fun = lambda x,y: x if y in ['CPW', 'WOLA', 'CPwtx', 'wtx'] else 0
     tail_rx_fun = lambda x,y: x if y in ['CPW', 'WOLA', 'CPwrx', 'wrx'] else 0
-    data = np.zeros((len(cp_list), int(2*len(sys_list))), dtype=np.float64)
+    data = np.zeros((dft_len, len(cp_list), len(sys_list)), dtype=np.float64)
+    data_rc = np.zeros((dft_len, len(cp_list), len(sys_list)), dtype=np.float64)
     for i, cp_len in enumerate(cp_list):
         for j, sys in enumerate(sys_list):
             win_tx, win_rx = read_window(folder_path, cp_len, sys, dft_len,
                                          tail_tx_fun(8, sys),
                                          tail_rx_fun(10, sys))
-            print(win_tx)
-            print(win_rx)
+            P_opt, P_rc = interf_power(sys, [win_tx, win_rx], dft_len, cp_len,
+                                       tail_tx_fun(8, sys), tail_rx_fun(10, sys))
+            data[:, i, j] = P_opt
+            data_rc[:, i, j] = P_rc
+    plot_interference(data, data_rc, cp_list, sys_list)
 
 
 def read_window(folder_path:str, cp_len:int, sys_design:str, dft_len:int,
@@ -76,8 +81,34 @@ def read_cond_number(folder_path:str):
     reg_val = list(set([i.split()]))
 
 
-def plot_interference():
-    """Method to plot interference power."""
+def plot_interference(data:np.ndarray, data_rc:np.ndarray, cp_list:list,
+                      sys_list:list):
+    """Method to plot interference power.
+    
+    Parameters
+    ----------
+    data : np.ndarray
+        Interference power data.
+    cp_list : list
+        List with CP length.
+    sys_list : list
+        List of each system.
+    """
+    
+    data_sum = np.sum(data, axis=0)
+    data_rc_sum = np.sum(data_rc, axis=0)
+    fig0 = plt.figure()
+    ax0 = fig0.add_subplot(1, 1, 1)
+    color_list = ['tab:blue', 'tab:orange', 'tab:green', 'tab:red',
+                  'tab:purple', 'tab:brown']
+    for idx, sys in enumerate(sys_list):
+        ax0.plot(cp_list, data_sum[:, idx], label=sys, c=color_list[idx])
+        ax0.plot(cp_list, data_rc_sum[:, idx], '--', c=color_list[idx])
+    ax0.legend()
+    ax0.set_yscale('log')
+    # ax0.set_ylim([1e-5, 1])
+    plt.show()
+
 
 
 def plot_condition_number():

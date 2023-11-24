@@ -56,7 +56,8 @@ def quadratic_solver(H:np.ndarray, p:np.ndarray, A:np.ndarray, b:np.ndarray,
 
     H_hat0, p_hat0, C_hat0, d_hat = var_trans_equality(H, p, A, b, C, d)
     H_hat, p_hat, C_hat = slack_var_inequality(H_hat0, p_hat0, C_hat0)
-    p = C_hat.shape[0]
+    p, _ = C_hat.shape
+    # import pdb; pdb.set_trace()
     x_sol_hat, n_iter = nfi_ip_mlc(H_hat, C_hat.T, -C_hat,
                                    np.zeros((p, p), dtype=np.float64), p_hat,
                                    d_hat, None, rho, epsilon)

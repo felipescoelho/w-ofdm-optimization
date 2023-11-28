@@ -54,6 +54,24 @@ def interf_power(sys_design:str, window_data:list, dft_len:int, cp_len:int,
             int(cp_len - tail_rx/2)
         Vtx_rc = gen_rc_window_tx(dft_len, cp_len, cs_len, tail_tx)
         Vrx_rc = gen_rc_window_rx(dft_len, tail_rx)
+    else:  # CP-OFDM
+        W_inv = gen_idft_matrix(dft_len)
+        Gamma = gen_add_redundancy_matrix(dft_len, cp_len, 0)
+        chann = np.load('channels/vehicularA.npy')
+        channel_ir = np.mean(chann, axis=1)
+        H_m = gen_channel_tensor(channel_ir, dft_len, 0, 0, cp_len, cp_len, 0)
+        R = gen_rm_redundancy_matrix(dft_len, 0, cp_len)
+        W = gen_dft_matrix(dft_len)
+        A0 = W@R@H_m[:, :, 0]@Gamma@W_inv
+        AICI1 = A0 - np.diagflat(np.diag(A0))
+        PICI1 = (AICI1 @ np.conjugate(np.transpose(AICI1))).real
+        Am = W@R@np.moveaxis(H_m[:, :, 1:], [2], [0])@Gamma@W_inv
+        PISI = np.zeros((dft_len, dft_len))
+        for idx in range(Am.shape[0]):
+            PISI += (Am[idx, :, :] @ np.conjugate(np.transpose(Am[idx, :, :]))).real
+
+        return np.diag(PISI+PICI1)
+    
     Vtx_opt, Vrx_opt = window_data
     # Transmitter:
     W_inv = gen_idft_matrix(dft_len)
@@ -63,7 +81,7 @@ def interf_power(sys_design:str, window_data:list, dft_len:int, cp_len:int,
     channel_ir = np.mean(chann, axis=1)
     H_m = gen_channel_tensor(channel_ir, dft_len, tail_tx, tail_rx, rm_len,
                              cp_len, cs_len)
-    # Transmitter:
+    # Receiver:
     R = gen_rm_redundancy_matrix(dft_len, tail_rx, rm_len)
     P = gen_overlap_and_add_matrix(dft_len, tail_rx)
     K = gen_circ_shift_matrix(dft_len, circ_shift)

@@ -9,7 +9,7 @@ Oct 10, 2023
 
 import os
 import numpy as np
-from numba import jit
+from numba import njit
 from .transmitter import (gen_add_redundancy_matrix, gen_idft_matrix,
                           gen_rc_window_tx)
 from .receiver import (gen_circ_shift_matrix, gen_dft_matrix,
@@ -60,13 +60,17 @@ def simulation_fun(data:tuple):
         win_tail_rx = np.load(window_file_path)
         win_tail_tx = np.array([1], ndmin=1)
         cs_len = int(tail_rx/2) if system_design == 'wrx' else 0
+    elif system_design == 'CP':
+        win_tail_rx = np.array([[1.]], ndmin=2, dtype=np.float64)
+        win_tail_tx = np.array([[1.]], ndmin=2, dtype=np.float64)
+        cs_len = 0
     win_tx = np.diagflat(reduce_variable_tx(dft_len, cp_len, cs_len,
                                             tail_tx)@win_tail_tx)
     win_rx = np.diagflat(reduce_variable_rx(dft_len, tail_rx)@win_tail_rx)
     sim_model = wOFDMSystem(system_design, dft_len, cp_len, tail_tx, tail_rx,
                             folder_path)
     sim_model.run_simulation(channel_models, win_tx, win_rx, ensemble, snr_arr,
-                             no_symbols)
+                            no_symbols)
 
 
 class wOFDMSystem:
@@ -79,7 +83,7 @@ class wOFDMSystem:
     """
 
     @staticmethod
-    @jit(nopython=True)
+    @njit(fastmath=True)
     def __run_sim_mc(tx_mat:np.ndarray, tx_mat_rc: np.ndarray,
                      rx_mat:np.ndarray, rx_mat_rc: np.ndarray, no_symbols:int,
                      channel_models:np.ndarray, ensemble:int, snr_arr:float,
@@ -236,6 +240,130 @@ class wOFDMSystem:
             ser_rc[idx] = result_rc/channel_models.shape[1]
 
         return ser, ser_rc
+    
+    @staticmethod
+    @njit(fastmath=True)
+    def __run_sim_cp_mc(tx_mat:np.ndarray, rx_mat:np.ndarray, no_symbols:int,
+                        channel_models:np.ndarray, ensemble:int, snr_arr:float,
+                        ser_flag=True):
+        """Method to run simulation using numba.
+
+        In this simulation, we transmit a certain number of w-OFDM
+        symbols, `no_symbols`, where the first symbol is our pilot.
+        Furthermore, we estimate the symbol error rate (SER) for each
+        signal to noise ratio (SNR) in `snr_arr` using a Monte Carlo
+        process for each channel model in `channel_models`, and
+        averaging its results.
+        
+        Parameters
+        ----------
+        tx_mat : np.ndarray
+            Array representing transmitter.
+        rx_mat : np.ndarray
+            Array representing receiver.
+        no_symbols : int
+            Number of symbols in a single frame.
+        channel_models : np.ndarray
+            Array with channel models.
+        ensemble : int
+            Number of repetitions in Monte Carlo process.
+        snr_arr : np.ndarray
+            Signal to noise ratio in dB.
+        ser_flag : bool (default=True)
+            Symbol error rate flag, if true we evaluate the SER and not
+            the BER (bit error rate).
+        """
+
+        def awgn(x, snr) -> np.ndarray:
+            """Method to add white Gaussian noise.
+            
+            Parameters
+            ----------
+            x : np.ndarray
+                Signal to be poluted with noise.
+            snr : float
+                Signal to noise ratio in dB.
+            
+            Returns
+            -------
+            y : np.ndarray
+                Noisy signal.
+            """
+
+            Px = np.vdot(x, x)
+            n = np.random.randn(len(x),) + 1j*np.random.randn(len(x),)
+            Pn = np.vdot(n, n)
+            n_adjusted = np.sqrt(Px*10**(-.1*snr)/Pn)*n
+
+            return x + n_adjusted
+        
+        def decision(x:np.ndarray, symbols:np.ndarray):
+            """Method to decide which symbol is received.
+            
+            Criterion: Shortest distance.
+            
+            Parameters
+            ----------
+            x : np.ndarray
+                Received signal.
+            symbols : np.ndarray
+                Possible values for reception.
+            
+            Returns
+            -------
+            y : np.ndarray
+
+            """
+            n_rows, n_cols = x.shape
+            y = np.zeros((n_rows, n_cols), dtype=np.complex128)
+            for i in range(n_rows):
+                for j in range(n_cols):
+                    min_idx = np.argmin(np.abs(symbols - x[i, j]))
+                    y[i, j] = symbols[min_idx]
+
+            return y
+        
+        n_elements = len(snr_arr)
+        ser = np.zeros((n_elements,), dtype=np.float64)
+        for idx, snr in enumerate(snr_arr):
+            result = 0
+            for ch_idx in range(channel_models.shape[1]):
+                result_mc = 0
+                for _ in range(ensemble):
+                    if ser_flag:
+                        symbols = np.array((-3-3j, -3-1j, -3+1j, -3+3j, -1-3j,
+                                            -1-1j, -1+1j, -1+3j, 1-3j, 1-1j,
+                                            1+1j, 1+3j, 3-3j, 3-1j, 3+1j,
+                                            3+3j))  # 16-QAM
+                        signal_digmod = np.random.choice(
+                            symbols, size=(tx_mat.shape[1], no_symbols),
+                            replace=True
+                        )
+                        frame_tx = (tx_mat @ signal_digmod).T
+                        # Serialize:
+                        signal_tx = frame_tx.flatten()
+                        # Convolution 'valid' + noise
+                        channel_model = channel_models[:, ch_idx]
+                        signal_conv = np.convolve(channel_model, signal_tx)
+                        signal_rx = awgn(
+                            signal_conv[:-(len(channel_model)-1)],
+                            snr
+                        )
+                        # parallelize -> preprocess -> recover
+                        frame_rx = signal_rx.reshape((no_symbols,
+                                                      rx_mat.shape[1]))
+                        signal_preproc = rx_mat @ frame_rx.T
+                        channel_est = signal_preproc[:, 0]/signal_digmod[:, 0]
+                        channel_est_mat = np.repeat(
+                            channel_est, no_symbols-1
+                        ).reshape((tx_mat.shape[1], no_symbols-1))
+                        recovered_signal = signal_preproc[:, 1:]/channel_est_mat
+                        symbols_est = decision(recovered_signal, symbols)
+                        result_mc += np.mean((symbols_est != signal_digmod[:, 1:]))
+                result += result_mc/ensemble
+            ser[idx] = result/channel_models.shape[1]
+
+        return ser
         
     def __init__(self, system_design:str, dft_len:int, cp_len:int, tail_tx:int,
                  tail_rx:int, folder_path:str):
@@ -284,6 +412,10 @@ class wOFDMSystem:
             self.cs_len = int(self.tail_tx + self.tail_rx/2)
             self.rm_len = int(self.cp_len - self.tail_rx/2)
             self.shift_len = 0
+        elif self.name == 'CP':
+            self.cs_len = 0
+            self.rm_len = self.cp_len
+            self.shift_len = 0
         # Set matrices:
         # Transmitter:
         self.idft_mat = gen_idft_matrix(self.dft_len)
@@ -319,27 +451,35 @@ class wOFDMSystem:
         no_symbols : int
             Number of symbols per transmitted frame.
         """
-
-        tx_mat = window_tx @ self.add_red_mat @ self.idft_mat
-        tx_mat_rc = gen_rc_window_tx(
-            self.dft_len, self.cp_len, self.cs_len, self.tail_tx
-        ) @ self.add_red_mat @self.idft_mat
-        rx_mat = self.dft_mat @ self.circ_shift_mat @ self.overlap_add_mat \
-            @ window_rx @ self.rm_red_mat
-        rx_mat_rc = self.dft_mat @ self.circ_shift_mat @ self.overlap_add_mat \
-            @ gen_rc_window_rx(self.dft_len, self.tail_rx) @ self.rm_red_mat
-        ser_opt, ser_rc = self.__run_sim_mc(
-            tx_mat, tx_mat_rc, rx_mat, rx_mat_rc, no_symbols, channel_models,
-            ensemble, snr_arr, self.tail_tx, ser_flag=True
-        )
-
         path_to_ser = os.path.join(self.folder_path, 'ser')
         os.makedirs(path_to_ser, exist_ok=True)
-        optimal_path = os.path.join(path_to_ser,
-                                    f'opt_{self.name}_{self.cp_len}.npy')
-        raised_cosine_path = os.path.join(path_to_ser,
-                                          f'rc_{self.name}_{self.cp_len}.npy')
-        np.save(optimal_path, ser_opt)
-        np.save(raised_cosine_path, ser_rc)
+        if self.name == 'CP':
+            tx_mat = self.add_red_mat @ self.idft_mat
+            rx_mat = self.dft_mat @ self.rm_red_mat
+            ser = self.__run_sim_cp_mc(tx_mat, rx_mat, no_symbols,
+                                       channel_models, ensemble, snr_arr)
+            cp_path = os.path.join(path_to_ser, f'CP_{self.cp_len}.npy')
+            np.save(cp_path, ser)
+        else:
+            tx_mat = window_tx @ self.add_red_mat @ self.idft_mat
+            tx_mat_rc = gen_rc_window_tx(
+                self.dft_len, self.cp_len, self.cs_len, self.tail_tx
+            ) @ self.add_red_mat @self.idft_mat
+            rx_mat = self.dft_mat @ self.circ_shift_mat @ self.overlap_add_mat \
+                @ window_rx @ self.rm_red_mat
+            rx_mat_rc = self.dft_mat @ self.circ_shift_mat @ self.overlap_add_mat \
+                @ gen_rc_window_rx(self.dft_len, self.tail_rx) @ self.rm_red_mat
+            ser_opt, ser_rc = self.__run_sim_mc(
+                tx_mat, tx_mat_rc, rx_mat, rx_mat_rc, no_symbols, channel_models,
+                ensemble, snr_arr, self.tail_tx, ser_flag=True
+            )
+            optimal_path = os.path.join(path_to_ser,
+                                        f'opt_{self.name}_{self.cp_len}.npy')
+            raised_cosine_path = os.path.join(path_to_ser,
+                                            f'rc_{self.name}_{self.cp_len}.npy')
+            print(ser_opt)
+            print(ser_rc)
+            np.save(optimal_path, ser_opt)
+            np.save(raised_cosine_path, ser_rc)
 
 # EoF

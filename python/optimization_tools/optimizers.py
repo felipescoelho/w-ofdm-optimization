@@ -46,26 +46,17 @@ def optimization_fun(data:tuple):
     if system_design in ['wtx', 'CPwtx']:
         tail_tx = 8
         opt_model = OptimizerTx(system_design, dft_len, cp_len, tail_tx)
-        var_len = int(tail_tx/2)+1
-        cs_len = tail_tx if system_design == 'wtx' else 0
-        x_rc = gen_rc_window_tx(dft_len, cp_len, cs_len, tail_tx)
-        x_rc = np.fliplr(np.atleast_2d(np.diag(x_rc)[int(tail_tx/2):tail_tx+1])).T
     elif system_design in ['wrx', 'CPwrx']:
         tail_rx = 10
         opt_model = OptimizerRx(system_design, dft_len, cp_len, tail_rx)
-        var_len = int(tail_rx/2 + 1)
-        x_rc = gen_rc_window_rx(dft_len, tail_rx)
-        x_rc = np.fliplr(np.atleast_2d(np.diag(x_rc)[int(tail_rx/2):tail_rx+1])).T
     elif system_design in ['CPW', 'WOLA']:
         tail_tx = 8
         tail_rx = 10
         opt_model = OptimizerTxRx(system_design, dft_len, cp_len, tail_tx,
                                   tail_rx)
-        var_len = int((1+tail_rx/2)*(tail_tx+1))
     
     chann_ten = opt_model.calculate_chann_matrices(channel_avg)
     H_mat = opt_model.gen_hessian(chann_ten)
-    # import pdb;pdb.set_trace()
     if not issymmetric(H_mat):
         print('The Hessian is not symmetric! \nApplying correction'
               + ' H = (H + H.T)/2.')
@@ -73,20 +64,28 @@ def optimization_fun(data:tuple):
     cond_no = np.linalg.cond(H_mat)
     print('---------------------------------------------')
     print(f'Condition Number: {cond_no}.')
-    reg = 1e-12
-    epsilon = 1e-12
-    H_reg = H_mat + reg*np.eye(var_len)
+    reg = 1e-9
+    if system_design in ['CPW', 'WOLA']:
+        reg = 1e-18
+    epsilon = 1e-20
+    H_reg = H_mat + reg*np.eye(H_mat.shape[0])
     print(f'Regularized condition number: {np.linalg.cond(H_reg)}.')
-    # import pdb; pdb.set_trace()
     x, _ = opt_model.optimize(H_reg, epsilon)
-    # x[x>0] = 1
-    fval = x.T @ H_mat @ x
-    fval_rc = x_rc.T @ H_mat @ x_rc
+    if system_design in ['wtx', 'wrx', 'CPwrx', 'CPwtx']:
+        x_eval = x.copy()
+    else:
+        x_tx = x[:(tail_tx+1)]
+        x_rx = x[(tail_tx+1):]
+        K = int((tail_rx/2 + 1) * (tail_tx+1))
+        x_eval = np.zeros((K, 1), dtype=np.float64)
+        for k in range(K):
+            x_eval[k] = x_rx[int(np.floor(k/(tail_tx+1)))] \
+                * x_tx[int(k - (tail_tx+1)*np.floor(k/(tail_tx+1)))]
+    fval = .5*(x_eval.T @ H_mat @ x_eval)
     print('---------------------------------------------')
     print(f'Eigenvalues: \n {np.linalg.eigvals(H_mat)}.')
     print(f'Resulting optimized vector: \n {x}')
     print(f'Function value for x: {fval}.')
-    print(f'Function value for x_rc: {fval_rc}.')
     print(f'Regularization value: {reg}.')
     print(f'Epsilon value: {epsilon}.')
     print('\nDone.\n\n')
@@ -132,8 +131,19 @@ class OptimizerTx:
 
     @staticmethod
     @njit(fastmath=False)
-    def special_matmul(B_mat, C_mat):
-        """Method to make special matrix multiplication."""
+    def __gen_ici_cost(B_mat:np.ndarray, C_mat:np.ndarray):
+        """Method to generate the ICI part of the cost function.
+        
+        Parameters
+        ----------
+        B_mat : np.ndarray
+        C_mat : np.ndarray
+        
+        Returns
+        -------
+        out_mat : np.ndarray
+        """
+
         dft_len, n_samples = B_mat.shape
         out_mat = np.zeros((n_samples, n_samples), dtype=np.complex128)
         for i in range(n_samples):
@@ -147,29 +157,22 @@ class OptimizerTx:
         return out_mat.real
 
     @staticmethod
-    @njit(fastmath=False)
-    def __gen_Q1(B_mat, C_mat):
-        """Method to generate Q1 using numba (which is way faster)."""
+    def __gen_isi_cost(B_mat:np.ndarray, C_mat:np.ndarray):
+        """Method to generate the ISI part of the cost function.
+        
+        Parameters
+        ----------
+        B_mat : np.ndarray
+        C_mat : np.ndarray
+        
+        Returns
+        -------
+        out_mat : np.ndarray
+        """
 
-        dft_len, n_samples = B_mat.shape
-        Q1_mat = np.zeros((n_samples, n_samples), dtype=np.float64)
-        # import pdb;pdb.set_trace()
-        for i in range(n_samples):
-            for j in range(i+1):
-                q1_ij = np.zeros((dft_len,), dtype=np.complex128)
-                for m in range(dft_len):
-                    logic_aux = np.ones((dft_len,), dtype=np.bool_)
-                    logic_aux[m] = 0
-                    # import pdb; pdb.set_trace()
-                    q1_ij[m] = np.conj(B_mat[logic_aux, i]).T \
-                        @ B_mat[logic_aux, j]*np.conj(C_mat[i, m])*C_mat[j, m]
-                    # Q1_mat[i, j] += \
-                    #     np.transpose(np.conj(B_mat[logic_aux, i])) \
-                    #     * np.conj(C_mat[i, m]) @ B_mat[logic_aux, j] \
-                    #     * C_mat[j, m]
-                Q1_mat[i, j] = np.sum(q1_ij).real
+        out_mat = (C_mat@np.conj(C_mat.T)) * (np.conj(B_mat.T)@B_mat)
 
-        return Q1_mat + np.transpose(Q1_mat) - np.diag(np.diag(Q1_mat))
+        return out_mat.real
 
     def __init__(self, system_design, dft_len, cp_len, tail_len):
         """Constructor method.
@@ -248,14 +251,12 @@ class OptimizerTx:
         B_mat = self.dft_mat@self.circ_shift_mat@self.overlap_add_mat \
             @ self.rm_red_mat@channel_tensor[:, :, 0]
         C_mat = self.add_red_mat@self.idft_mat
-        D_mat = self.add_red_mat@self.idft_mat@self.dft_mat \
-            @ self.circ_shift_mat@self.overlap_add_mat@self.rm_red_mat \
-            @ np.sum(channel_tensor[:, :, 1:], 2)
-        # Q1_mat = self.__gen_Q1(B_mat, C_mat)
-        Q1_mat = self.special_matmul(B_mat, C_mat)
-        Q2_mat = np.real(D_mat @ np.conj(np.transpose(D_mat)))
-        # import pdb;pdb.set_trace()
-        return np.transpose(self.reduce_var_mat) @ (2*(.9*Q1_mat + .1*Q2_mat)) \
+        B2_mat = self.dft_mat@self.circ_shift_mat@self.overlap_add_mat \
+            @self.rm_red_mat@np.sum(channel_tensor[:, :, 1:], 2)
+        Q1_mat = self.__gen_ici_cost(B_mat, C_mat)
+        Q2_mat = self.__gen_isi_cost(B2_mat, C_mat)
+
+        return np.transpose(self.reduce_var_mat) @ (2*(Q1_mat + Q2_mat)) \
                   @ self.reduce_var_mat
 
     def optimize(self, H_mat, epsilon):
@@ -265,7 +266,7 @@ class OptimizerTx:
 
         A, b, C, d = gen_constraints_tx(self.tail_len)
 
-        p = np.zeros((1+int(self.tail_len/2), 1), dtype=np.float64)
+        p = np.zeros((1+self.tail_len, 1), dtype=np.float64)
         x, n_iter = quadratic_solver(H_mat, p, A, b, C, d, epsilon=epsilon)
 
         return x, n_iter
@@ -279,8 +280,19 @@ class OptimizerRx:
 
     @staticmethod
     @njit(fastmath=False)
-    def special_matmul(B_mat, C_mat):
-        """Method to make special matrix multiplication."""
+    def __gen_ici_cost(B_mat, C_mat):
+        """Method to generate the ICI part of the cost function.
+        
+        Parameters
+        ----------
+        B_mat : np.ndarray
+        C_mat : np.ndarray
+        
+        Returns
+        -------
+        out_mat : np.ndarray
+        """
+
         dft_len, n_samples = B_mat.shape
         out_mat = np.zeros((n_samples, n_samples), dtype=np.complex128)
         for i in range(n_samples):
@@ -294,23 +306,22 @@ class OptimizerRx:
         return out_mat.real
 
     @staticmethod
-    @njit(fastmath=False)
-    def __gen_Q1(B_mat, C_mat):
-        """Method to generate Q1 using numba (which is way faster)."""
+    def __gen_isi_cost(B_mat:np.ndarray, C_mat:np.ndarray):
+        """Method to generate the ISI part of the cost function.
+        
+        Parameters
+        ----------
+        B_mat : np.ndarray
+        C_mat : np.ndarray
+        
+        Returns
+        -------
+        out_mat : np.ndarray
+        """
 
-        dft_len, n_samples = B_mat.shape
-        Q1_mat = np.zeros((n_samples, n_samples), dtype=np.complex128)
-        for i in range(n_samples):
-            for j in range(i+1):
-                for m in range(dft_len):
-                    logic_aux = np.ones((dft_len,), dtype=np.bool_)
-                    logic_aux[m] = 0
-                    Q1_mat[i, j] += \
-                        np.transpose(np.conj(B_mat[logic_aux, i])) \
-                        * np.conj(C_mat[i, m]) @ B_mat[logic_aux, j] \
-                        * C_mat[j, m]
+        out_mat = (C_mat@np.conj(C_mat.T)) * (np.conj(B_mat.T)@B_mat)
 
-        return np.real(Q1_mat + np.transpose(Q1_mat) - np.diag(np.diag(Q1_mat)))
+        return out_mat.real
 
     def __init__(self, system_design:str, dft_len:int, cp_len:int,
                  tail_len:int):
@@ -390,12 +401,10 @@ class OptimizerRx:
         B_mat = self.dft_mat@self.circ_shift_mat@self.overlap_add_mat
         C_mat = self.rm_red_mat@channel_tensor[:, :, 0]@self.add_red_mat \
             @ self.idft_mat
-        D_mat = self.rm_red_mat@np.sum(channel_tensor[:, :, 1:], 2) \
-            @ self.add_red_mat@self.dft_mat@self.idft_mat@self.circ_shift_mat \
-            @ self.overlap_add_mat
-        Q1_mat = self.special_matmul(B_mat, C_mat)
-        # Q1_mat = self.__gen_Q1(B_mat, C_mat)
-        Q2_mat = np.real(np.diag(np.diag(D_mat @ np.conj(np.transpose(D_mat)))))
+        C_mat2 = self.rm_red_mat@np.sum(channel_tensor[:, :, 1:], 2) \
+            @ self.add_red_mat@self.idft_mat
+        Q1_mat = self.__gen_ici_cost(B_mat, C_mat)
+        Q2_mat = self.__gen_isi_cost(B_mat, C_mat2)
 
         return np.transpose(self.reduce_var_mat) @ (2*(Q1_mat + Q2_mat)) \
             @ self.reduce_var_mat
@@ -416,8 +425,8 @@ class OptimizerTxRx:
     """"""
 
     @staticmethod
-    @njit(fastmath=False)
-    def __gen_Q1(B_mat:np.ndarray, C_mat:np.ndarray, D_mat:np.ndarray,
+    @njit(fastmath=True)
+    def __gen_ici_cost(B_mat:np.ndarray, C_mat:np.ndarray, D_mat:np.ndarray,
                  red_tx:np.ndarray, red_rx:np.ndarray):
         """
         Method to generate Q1 using numba (which is way faster).
@@ -449,8 +458,7 @@ class OptimizerTxRx:
                 M_mat = np.zeros((len_rx, len_tx), dtype=np.complex128)
                 for m in range(len_rx):
                     for n in range(len_tx):
-                        M_mat[m, n] = B_mat[i, m] * D_mat[n, j]
-                M_mat *= C_mat
+                        M_mat[m, n] = B_mat[i, m] * C_mat[m, n] * D_mat[n, j]
                 M_prim = red_rx.T @ M_mat @ red_tx
                 m = M_prim.flatten()
                 mm[:, int(dft_len*i + j)] = m
@@ -459,8 +467,8 @@ class OptimizerTxRx:
         return Q1_mat
 
     @staticmethod
-    @njit(fastmath=False)
-    def __gen_Q2(B_mat:np.ndarray, C_mat:np.ndarray, D_mat:np.ndarray,
+    @njit(fastmath=True)
+    def __gen_isi_cost(B_mat:np.ndarray, C_mat:np.ndarray, D_mat:np.ndarray,
                  red_tx:np.ndarray, red_rx:np.ndarray):
         """
         Method to generate Q1 using numba (which is way faster).
@@ -490,8 +498,7 @@ class OptimizerTxRx:
                 M_mat = np.zeros((len_rx, len_tx), dtype=np.complex128)
                 for m in range(len_rx):
                     for n in range(len_tx):
-                        M_mat[m, n] = B_mat[i, m] * D_mat[n, j]
-                M_mat *= C_mat
+                        M_mat[m, n] = B_mat[i, m] * C_mat[m, n] * D_mat[n, j]
                 M_prim = red_rx.T @ M_mat @ red_tx
                 m = M_prim.flatten()
                 mm[:, int(dft_len*i + j)] = m
@@ -528,7 +535,6 @@ class OptimizerTxRx:
         tail_tx = rc_tx[:tail_tx_len+1]
         tail_rx = rc_rx[int(tail_rx_len/2):tail_rx_len+1]
         x0 = np.zeros((K, 1), dtype=np.float64)
-        # import pdb; pdb.set_trace()
         for k in range(K):
             x0[k] = tail_rx[int(np.floor(k/(tail_tx_len+1)))] \
                 * tail_tx[int(k - (tail_tx_len+1)*np.floor(k/(tail_tx_len+1)))]
@@ -816,22 +822,22 @@ class OptimizerTxRx:
         C_mat = self.rm_red_mat@channel_tensor[:, :, 0]
         C2_mat = self.rm_red_mat@np.sum(channel_tensor[:, :, 1:], 2)
         D_mat = self.add_red_mat@self.idft_mat
-        Q1_mat = self.__gen_Q1(B_mat, C_mat, D_mat,
+        Q1_mat = self.__gen_ici_cost(B_mat, C_mat, D_mat,
                                self.reduce_var_tx_mat.astype(np.complex128),
                                self.reduce_var_rx_mat.astype(np.complex128))
 
-        Q2_mat = self.__gen_Q2(B_mat, C2_mat, D_mat,
+        Q2_mat = self.__gen_isi_cost(B_mat, C2_mat, D_mat,
                                self.reduce_var_tx_mat.astype(np.complex128),
                                self.reduce_var_rx_mat.astype(np.complex128))
 
-        return 2*(Q1_mat + Q2_mat)
+        return 2*(Q1_mat + Q2_mat).real
     
-    def optimize(self, H_mat:np.ndarray):
+    def optimize(self, H_mat:np.ndarray, epsilon:float):
         """
         Method to run optimization using our algorithms.
         """
 
-        args = (H_mat.real)
+        args = (H_mat)
         x0 = self.gen_x0(self.dft_len, self.cp_len, self.cs_len,
                          self.tail_tx_len, self.tail_rx_len)
         n_constraints = int(self.tail_rx_len/2 + self.tail_tx_len)
@@ -846,11 +852,20 @@ class OptimizerTxRx:
         eq_const = NonlinearConstraint(self.eq_const, lb=0, ub=0,
                                        jac=self.jac_eq_const,
                                        keep_feasible=True)
-        res = minimize(self.cost_fun, x0.flatten(), args=args,
-                       method='trust-constr', jac=self.jac_fun,
-                       hess=self.hess_fun, constraints=[eq_const, ineq_const],
-                       options={'xtol': 1e-9, 'verbose': 0, 'gtol': 1e-9})
-        x = res.x
+        status = 0
+        initial_rad = 1e-6
+        while status == 0:
+            res = minimize(self.cost_fun, x0.flatten(), args=args,
+                           method='trust-constr', jac=self.jac_fun,
+                           hess=self.hess_fun, constraints=[eq_const, ineq_const],
+                           options={'xtol': 1e-20, 'verbose': 1, 'gtol': 1e-20,
+                                    'barrier_tol': 1e-20, 'maxiter': 3000,
+                                    'initial_tr_radius': initial_rad})
+            status = res.status
+            x = res.x
+            x0 = x.copy()
+            initial_rad = 1e-12
+
         x_tx = x[:9]
         x_rx = x[[0, 9 ,18, 27, 36, 45]]
         x_opt = np.hstack((x_tx, x_rx))

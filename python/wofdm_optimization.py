@@ -104,14 +104,15 @@ if __name__ == '__main__':
                 [optimization_fun(data) for data in data_list]
 
     elif args.mode == 'run_sim':
+        # Simulation settings:
+        dft_len = 256
+        cp_list = [int(cp_len) for cp_len in args.cp_length.split(',')]
+        sys_list = args.systems.split(',')
+        snr_arr = np.arange(*[int(val) for val in args.snr.split(',')])
         if args.figures:
-            pass
+            from figures_utils import gen_figures_sim
+            gen_figures_sim(args.simulation_path, cp_list, sys_list, snr_arr)
         else:
-            # Simulation settings:
-            dft_len = 256
-            cp_list = [int(cp_len) for cp_len in args.cp_length.split(',')]
-            sys_list = args.systems.split(',')
-            snr_arr = np.arange(*[int(val) for val in args.snr.split(',')])
             tail_tx_fun = lambda x,y: x if y in ['CPW', 'WOLA', 'CPwtx', 'wtx'] \
                 else 0
             tail_rx_fun = lambda x,y: x if y in ['CPW', 'WOLA', 'CPwrx', 'wrx'] \

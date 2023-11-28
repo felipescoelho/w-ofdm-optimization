@@ -29,20 +29,23 @@ def gen_figures_opt(folder_path:str, dft_len:int, cp_list:list, sys_list:list):
     sys_list : list
         List of system designs.
     """
+
     tail_tx_fun = lambda x,y: x if y in ['CPW', 'WOLA', 'CPwtx', 'wtx'] else 0
     tail_rx_fun = lambda x,y: x if y in ['CPW', 'WOLA', 'CPwrx', 'wrx'] else 0
     data = np.zeros((dft_len, len(cp_list), len(sys_list)), dtype=np.float64)
     data_rc = np.zeros((dft_len, len(cp_list), len(sys_list)), dtype=np.float64)
+    data_cp = np.zeros((dft_len, len(cp_list)), dtype=np.float64)
     for i, cp_len in enumerate(cp_list):
         for j, sys in enumerate(sys_list):
             win_tx, win_rx = read_window(folder_path, cp_len, sys, dft_len,
                                          tail_tx_fun(8, sys),
                                          tail_rx_fun(10, sys))
             P_opt, P_rc = interf_power(sys, [win_tx, win_rx], dft_len, cp_len,
-                                       tail_tx_fun(8, sys), tail_rx_fun(10, sys))
+                                       tail_tx_fun(8, sys), tail_rx_fun(10, sys))    
             data[:, i, j] = P_opt
             data_rc[:, i, j] = P_rc
-    plot_interference(data, data_rc, cp_list, sys_list)
+        data_cp[:, i] = interf_power('CP', None, dft_len, cp_len, None, None)
+    plot_interference(data, data_rc, data_cp, cp_list, sys_list)
 
 
 def read_window(folder_path:str, cp_len:int, sys_design:str, dft_len:int,
@@ -81,8 +84,8 @@ def read_cond_number(folder_path:str):
     reg_val = list(set([i.split()]))
 
 
-def plot_interference(data:np.ndarray, data_rc:np.ndarray, cp_list:list,
-                      sys_list:list):
+def plot_interference(data:np.ndarray, data_rc:np.ndarray, data_cp:np.ndarray,
+                      cp_list:list, sys_list:list):
     """Method to plot interference power.
     
     Parameters
@@ -97,22 +100,63 @@ def plot_interference(data:np.ndarray, data_rc:np.ndarray, cp_list:list,
     
     data_sum = np.sum(data, axis=0)
     data_rc_sum = np.sum(data_rc, axis=0)
-    fig0 = plt.figure()
-    ax0 = fig0.add_subplot(1, 1, 1)
+    data_cp_sum = np.sum(data_cp, axis=0)
     color_list = ['tab:blue', 'tab:orange', 'tab:green', 'tab:red',
                   'tab:purple', 'tab:brown']
+    markers = ['P', '*', 's', 'd', 'o', 'X']
+    
+    fig0 = plt.figure()
+    ax0 = fig0.add_subplot(1, 1, 1)
+    ax0.plot(cp_list, data_cp_sum, marker='h', mfc='none', ms=10, label='CP',
+             c='k')
     for idx, sys in enumerate(sys_list):
-        ax0.plot(cp_list, data_sum[:, idx], label=sys, c=color_list[idx])
-        ax0.plot(cp_list, data_rc_sum[:, idx], '--', c=color_list[idx])
+        ax0.plot(cp_list, data_sum[:, idx], marker=markers[idx], mfc='none',
+                 ms=10, label=sys, c=color_list[idx])
+        ax0.plot(cp_list, data_rc_sum[:, idx], '--', marker=markers[idx],
+                 mfc='none', ms=10, c=color_list[idx])
     ax0.legend()
     ax0.set_yscale('log')
-    # ax0.set_ylim([1e-5, 1])
+    ax0.set_ylim([1e-12, 1])
+    ax0.set_xlim([10, 32])
+    ax0.set_xticks([10, 14, 18, 22, 26, 30])
+    ax0.set_xlabel('CP Length, $\mu$')
+    ax0.set_ylabel('Total Interf. Power')
+    ax0.grid()
+
+    fig1 = plt.figure()
+    ax0 = fig1.add_subplot(1, 1, 1)
+    tail_tx = 8
+    tail_rx = 10
+    ax0.plot(cp_list, data_cp_sum, marker='h', mfc='none', ms=10, label='CP',
+             c='k')
+    for idx, sys in enumerate(sys_list):
+        if sys == 'CPwrx':
+            cp_list_corrected = cp_list
+        elif sys == 'wrx':
+            cp_list_corrected = [cp + int(tail_rx/2) for cp in cp_list]
+        else:
+            if sys in ['wtx', 'CPW']:
+                cs = tail_tx
+            elif sys == 'CPwtx':
+                cs = 0
+            else:
+                cs = tail_tx + int(tail_rx/2)
+            cp_list_corrected = [cp+cs-tail_tx for cp in cp_list]
+        ax0.plot(cp_list_corrected, data_sum[:, idx], marker=markers[idx],
+                 mfc='none',
+                 ms=10, label=sys, c=color_list[idx])
+        ax0.plot(cp_list_corrected, data_rc_sum[:, idx], '--', marker=markers[idx],
+                 mfc='none', ms=10, c=color_list[idx])
+    ax0.legend()
+    ax0.set_yscale('log')
+    ax0.set_ylim([1e-12, 1])
+    ax0.set_xlim([2, 32+int(tail_rx/2)])
+    ax0.set_xlabel('Perceived Redundancy, $\mu + \\rho - \\beta$')
+    ax0.set_ylabel('Total Interf. Power')
+    ax0.grid()
+
     plt.show()
 
-
-
-def plot_condition_number():
-    """Method to plot condition number."""
 
 
 # EoF

@@ -39,17 +39,16 @@ def gen_channel_tensor(channel_ir:np.ndarray, dft_len:int, tail_tx:int,
         Array with channel matrices for system.
     """
 
-    depth = 1+int(np.ceil((len(channel_ir)+tail_tx) / (dft_len+tail_rx+rm_len)))
+    M = 1+int(np.ceil((len(channel_ir)-1+tail_tx) / (dft_len+tail_rx+rm_len)))
     N_0 = dft_len+cp_len+cs_len-tail_tx
     channel_tensor = np.zeros((dft_len+tail_rx+rm_len, dft_len+cp_len+cs_len,
-                               depth), dtype=np.complex128)
-    for depth_idx in range(depth):
-        for row_idx in range(dft_len+tail_rx+rm_len):
-            for col_idx in range(dft_len+cp_len+cs_len):
-                idx = depth_idx*N_0 + row_idx - col_idx
-                if 0 <= idx <= len(channel_ir)-1:
-                    channel_tensor[row_idx, col_idx, depth_idx] = \
-                        channel_ir[depth_idx*N_0 + row_idx - col_idx]
+                               M), dtype=np.complex128)
+    for m in range(M):
+        for b in range(dft_len+tail_rx+rm_len):
+            for c in range(dft_len+cp_len+cs_len):
+                idx = m*N_0 + b - c
+                if 0 <= idx < len(channel_ir):
+                    channel_tensor[b, c, m] = channel_ir[idx]
 
     return channel_tensor
 

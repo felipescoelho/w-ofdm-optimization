@@ -33,15 +33,39 @@ def gen_figures_sim(folder_path:str, cp_list:list, sys_list:list,
 
     data_opt = np.zeros((len(snr_arr), len(sys_list)),
                     dtype=np.float64)
+    data_opt_corrected = np.zeros((len(snr_arr), len(sys_list)),
+                                  dtype=np.float64)
     data_rc = np.zeros((len(snr_arr), len(sys_list)),
                        dtype=np.float64)
+    data_rc_corrected = np.zeros((len(snr_arr), len(sys_list)),
+                                dtype=np.float64)
+    tail_tx = 8
+    tail_rx = 10
     for cp_len in cp_list:
         cp_ser = read_results_ser(folder_path, cp_len, 'CP')
         for j, sys in enumerate(sys_list):
+            if sys == 'CPwrx':
+                cp_corrected = cp_len
+            elif sys == 'wrx':
+                cp_corrected = cp_len - int(tail_rx/2)
+            else:
+                if sys in ['wtx', 'CPW']:
+                    cs_len = tail_tx
+                elif sys == 'CPwtx':
+                    cs_len = 0
+                else:
+                    cs_len = tail_tx + int(tail_rx/2)
+                cp_corrected = cp_len-cs_len+tail_tx
             opt_ser, rc_ser = read_results_ser(folder_path, cp_len, sys)
+            opt_ser_corrected, rc_ser_corrected = read_results_ser(
+                folder_path, cp_corrected, sys
+            )
             data_opt[:, j] = opt_ser
+            data_opt_corrected[:, j] = opt_ser_corrected
             data_rc[:, j] = rc_ser
-        plot_ser_single_cp(data_opt, data_rc, cp_ser, snr_arr, sys_list)
+            data_rc_corrected[:, j] = rc_ser_corrected
+        plot_ser_single_cp(data_opt, data_opt_corrected, data_rc,
+                           data_rc_corrected, cp_ser, snr_arr, sys_list)
         
 
 def read_results_ser(folder_path:str, cp_len:int, sys:str):
@@ -57,7 +81,8 @@ def read_results_ser(folder_path:str, cp_len:int, sys:str):
 
     return np.load(file_path_opt), np.load(file_path_rc)
 
-def plot_ser_single_cp(data_opt:np.ndarray, data_rc:np.ndarray,
+def plot_ser_single_cp(data_opt:np.ndarray, data_opt_corrected:np.ndarray,
+                       data_rc:np.ndarray, data_rc_corrected:np.ndarray,
                        data_cp:np.ndarray, snr_arr:np.ndarray, sys_list:list):
     
     color_list = ['tab:blue', 'tab:orange', 'tab:green', 'tab:red',
@@ -75,7 +100,25 @@ def plot_ser_single_cp(data_opt:np.ndarray, data_rc:np.ndarray,
                  mfc='none', ms=10, c=color_list[idx])
     ax0.legend()
     ax0.set_yscale('log')
+    ax0.set_xlabel('SNR, dB')
+    ax0.set_ylabel('SER')
     ax0.grid()
+
+    fig1 = plt.figure()
+    ax0 = fig1.add_subplot(1, 1, 1)
+    ax0.plot(snr_arr, data_cp, marker='h', mfc='none', ms=10, label='CP',
+             c='k')
+    for idx, sys in enumerate(sys_list):
+        ax0.plot(snr_arr, data_opt_corrected[:, idx], marker=markers[idx], mfc='none',
+                 ms=10, label=sys, c=color_list[idx])
+        ax0.plot(snr_arr, data_rc_corrected[:, idx], '--', marker=markers[idx],
+                 mfc='none', ms=10, c=color_list[idx])
+    ax0.legend()
+    ax0.set_yscale('log')
+    ax0.set_xlabel('SNR, dB')
+    ax0.set_ylabel('SER')
+    ax0.grid()
+
     plt.show()
 
     

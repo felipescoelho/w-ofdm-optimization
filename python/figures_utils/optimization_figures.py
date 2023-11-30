@@ -73,17 +73,6 @@ def read_window(folder_path:str, cp_len:int, sys_design:str, dft_len:int,
     return win_tx, win_rx
 
 
-def read_cond_number(folder_path:str):
-    """Method to read condition numbers."""
-
-    folder_name = os.path.join(folder_path, 'condition_number')
-    file_list = [f.path for f in os.scandir(folder_name) if
-                 f.name.endswith('.npy')]
-    cp_list = list(set([i.split('/').split('_')[1] for i in file_list]))
-    sys_list = list(set([i.split('/').split('_')[0] for i in file_list]))
-    reg_val = list(set([i.split()]))
-
-
 def plot_interference(data:np.ndarray, data_rc:np.ndarray, data_cp:np.ndarray,
                       cp_list:list, sys_list:list):
     """Method to plot interference power.

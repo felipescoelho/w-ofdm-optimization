@@ -11,7 +11,7 @@ import numpy as np
 import os
 from multiprocessing import cpu_count, Pool
 from channel_model import gen_chan
-from ofdm_utils import simulation_fun
+from ofdm_utils import simulation_fun, obr_fun
 
 
 def arg_parser():
@@ -127,6 +127,27 @@ if __name__ == '__main__':
                     pool.map(simulation_fun, data_list)
             else:
                 [simulation_fun(data) for data in data_list]
+    
+    elif args.mode == 'run_obr':
+        dft_len = 256
+        cp_list = [int(cp_len) for cp_len in args.cp_length.split(',')]
+        sys_list = args.systems.split(',')
+        if args.figures:
+            pass
+        else:
+            tail_tx_fun = lambda x,y: x if y in ['CPW', 'WOLA', 'CPwtx', 'wtx'] \
+                else 0
+            tail_rx_fun = lambda x,y: x if y in ['CPW', 'WOLA', 'CPwrx', 'wrx'] \
+                else 0
+            data_list = [(sys, dft_len, cp, tail_tx_fun(8, sys),
+                          tail_rx_fun(10, sys), args.window_path,
+                          args.simulation_path)
+                         for sys in sys_list for cp in cp_list]
+            if args.parallel:
+                with Pool(cpu_count()) as pool:
+                    pool.map(obr_fun, data_list)
+            else:
+                [obr_fun(data) for data in data_list]
     else:
         print('Mode is not defined, be sure to use gen_chan, run_opt, or ' \
               + 'run_sim.')

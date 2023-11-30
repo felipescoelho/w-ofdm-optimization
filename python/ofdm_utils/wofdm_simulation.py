@@ -24,7 +24,7 @@ def simulation_fun(data:tuple):
     ----------
     data : tuple
         Tuple containing (system_design, dft_len, cp_len, tail_tx,
-        tail_rx), where
+        tail_rx, window_path), where
             system_design : str
                 The w-OFDM system design.
             dft_len : int
@@ -477,8 +477,6 @@ class wOFDMSystem:
                                         f'opt_{self.name}_{self.cp_len}.npy')
             raised_cosine_path = os.path.join(path_to_ser,
                                             f'rc_{self.name}_{self.cp_len}.npy')
-            print(ser_opt)
-            print(ser_rc)
             np.save(optimal_path, ser_opt)
             np.save(raised_cosine_path, ser_rc)
 

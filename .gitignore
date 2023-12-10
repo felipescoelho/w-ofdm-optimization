@@ -6,6 +6,7 @@ optimized_windows/
 ber_results/
 interference_results/
 oob_figures/
+simulation_results/
 logs/
 __pycache__/
 
@@ -18,4 +19,5 @@ __pycache__/
 *.fig
 *.zip
 *.npy
-*ipynb
+*.npz
+*.ipynb

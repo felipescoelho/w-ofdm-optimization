@@ -6,6 +6,7 @@ __all__ = ['gen_figures_opt', 'gen_figures_sim']
 
 from .optimization_figures import gen_figures_opt
 from .simulation_figures import gen_figures_sim
+from .timefreq_figures import gen_figures_timefreq
 
 
 # EoF

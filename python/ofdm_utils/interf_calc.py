@@ -48,9 +48,9 @@ def interf_power(sys_design:str, window_data:list, dft_len:int, cp_len:int,
         Vtx_rc = np.eye(dft_len+cp_len+cs_len)
         Vrx_rc = gen_rc_window_rx(dft_len, tail_rx)
     elif sys_design in ['CPW', 'WOLA']:
-        cs_len = int(tail_tx + tail_rx/2) if sys_design == 'WOLA' else tail_tx
-        circ_shift = int(tail_rx/2) if sys_design == 'CPW' else 0
-        rm_len = cp_len - tail_rx if sys_design == 'CPW' else \
+        cs_len = int(tail_tx + tail_rx/2) if sys_design == 'CPW' else tail_tx
+        circ_shift = int(tail_rx/2) if sys_design == 'WOLA' else 0
+        rm_len = cp_len - tail_rx if sys_design == 'WOLA' else \
             int(cp_len - tail_rx/2)
         Vtx_rc = gen_rc_window_tx(dft_len, cp_len, cs_len, tail_tx)
         Vrx_rc = gen_rc_window_rx(dft_len, tail_rx)

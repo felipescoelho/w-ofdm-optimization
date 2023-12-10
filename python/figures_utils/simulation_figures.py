@@ -13,8 +13,14 @@ import numpy as np
 import os
 
 
-def gen_figures_sim(folder_path:str, cp_list:list, sys_list:list,
-                    snr_arr:np.ndarray):
+plt.rcParams.update({
+    'text.usetex': True,
+    'font.family': 'helvet'
+})
+
+
+def gen_figures_sim(folder_path:str, figures_path:str, cp_list:list,
+                    sys_list:list, snr_arr:np.ndarray):
     """Method to generate figures for the simulation.
     
     Parameters
@@ -31,6 +37,8 @@ def gen_figures_sim(folder_path:str, cp_list:list, sys_list:list,
         Array with values for the SNR.
     """
 
+    fig_path = os.path.join(figures_path, 'ser')
+    os.makedirs(fig_path, exist_ok=True)
     data_opt = np.zeros((len(snr_arr), len(sys_list)),
                     dtype=np.float64)
     data_opt_corrected = np.zeros((len(snr_arr), len(sys_list)),
@@ -65,7 +73,8 @@ def gen_figures_sim(folder_path:str, cp_list:list, sys_list:list,
             data_rc[:, j] = rc_ser
             data_rc_corrected[:, j] = rc_ser_corrected
         plot_ser_single_cp(data_opt, data_opt_corrected, data_rc,
-                           data_rc_corrected, cp_ser, snr_arr, sys_list)
+                           data_rc_corrected, cp_ser, snr_arr, sys_list,
+                           fig_path, cp_len)
         
 
 def read_results_ser(folder_path:str, cp_len:int, sys:str):
@@ -81,15 +90,19 @@ def read_results_ser(folder_path:str, cp_len:int, sys:str):
 
     return np.load(file_path_opt), np.load(file_path_rc)
 
+
 def plot_ser_single_cp(data_opt:np.ndarray, data_opt_corrected:np.ndarray,
                        data_rc:np.ndarray, data_rc_corrected:np.ndarray,
-                       data_cp:np.ndarray, snr_arr:np.ndarray, sys_list:list):
+                       data_cp:np.ndarray, snr_arr:np.ndarray, sys_list:list,
+                       fig_path:str, cp_len:int):
     
     color_list = ['tab:blue', 'tab:orange', 'tab:green', 'tab:red',
                   'tab:purple', 'tab:brown']
     markers = ['P', '*', 's', 'd', 'o', 'X']
-
-    fig0 = plt.figure()
+    width = 5.93
+    height = width/((1 + 5**.5)/2)
+    font_size = 12
+    fig0 = plt.figure(figsize=(width, height))
     ax0 = fig0.add_subplot(1, 1, 1)
     ax0.plot(snr_arr, data_cp, marker='h', mfc='none', ms=10, label='CP',
              c='k')
@@ -98,28 +111,75 @@ def plot_ser_single_cp(data_opt:np.ndarray, data_opt_corrected:np.ndarray,
                  ms=10, label=sys, c=color_list[idx])
         ax0.plot(snr_arr, data_rc[:, idx], '--', marker=markers[idx],
                  mfc='none', ms=10, c=color_list[idx])
-    ax0.legend()
+    ax0.legend(fontsize=font_size)
     ax0.set_yscale('log')
-    ax0.set_xlabel('SNR, dB')
-    ax0.set_ylabel('SER')
-    ax0.grid()
+    ax0.set_xlabel('SNR, dB', fontsize=font_size)
+    ax0.set_ylabel('SER', fontsize=font_size)
+    ax0.tick_params(axis='both', which='major', labelsize=font_size)
+    ax0.grid(axis='both', which='both')
+    fig0.tight_layout()
 
-    fig1 = plt.figure()
+    fig1 = plt.figure(figsize=(width, height))
     ax0 = fig1.add_subplot(1, 1, 1)
     ax0.plot(snr_arr, data_cp, marker='h', mfc='none', ms=10, label='CP',
              c='k')
     for idx, sys in enumerate(sys_list):
-        ax0.plot(snr_arr, data_opt_corrected[:, idx], marker=markers[idx], mfc='none',
-                 ms=10, label=sys, c=color_list[idx])
+        ax0.plot(snr_arr, data_opt_corrected[:, idx], marker=markers[idx],
+                 mfc='none', ms=10, label=sys, c=color_list[idx])
         ax0.plot(snr_arr, data_rc_corrected[:, idx], '--', marker=markers[idx],
                  mfc='none', ms=10, c=color_list[idx])
-    ax0.legend()
+    ax0.legend(fontsize=font_size)
     ax0.set_yscale('log')
-    ax0.set_xlabel('SNR, dB')
-    ax0.set_ylabel('SER')
-    ax0.grid()
+    ax0.set_xlabel('SNR, dB', fontsize=font_size)
+    ax0.set_ylabel('SER', fontsize=font_size)
+    ax0.tick_params(axis='both', which='major', labelsize=font_size)
+    ax0.grid(axis='both', which='both')
+    fig1.tight_layout()
 
-    plt.show()
+    if cp_len == 22:
+        fig2 = plt.figure(figsize=(width, height))
+        ax0 = fig2.add_subplot(1, 1, 1)
+        x0, x1, y0, y1 = 40, 50, 5*1e-4, 2*1e-3
+        axins = ax0.inset_axes(
+            [.1, .1, .5, .5], xlim=(x0, x1), ylim=(y0, y1),
+            yticklabels=[]
+        )
+        ax0.plot(snr_arr, data_cp, marker='h', mfc='none', ms=10, label='CP',
+                c='k')
+        axins.plot(snr_arr, data_cp, marker='h', mfc='none', ms=10, c='k')
+        for idx, sys in enumerate(sys_list):
+            ax0.plot(snr_arr, data_opt_corrected[:, idx], marker=markers[idx],
+                     mfc='none', ms=10, label=sys, c=color_list[idx])
+            ax0.plot(snr_arr, data_rc_corrected[:, idx], '--',
+                     marker=markers[idx], mfc='none', ms=10, c=color_list[idx])
+            axins.plot(snr_arr, data_opt_corrected[:, idx], marker=markers[idx],
+                       mfc='none', ms=10, c=color_list[idx])
+            axins.plot(snr_arr, data_rc_corrected[:, idx], '--',
+                       marker=markers[idx], mfc='none', ms=10,
+                       c=color_list[idx])
+        ax0.indicate_inset_zoom(axins, edgecolor='black')
+        ax0.legend(fontsize=10)
+        ax0.set_yscale('log')
+        ax0.set_xlabel('SNR, dB', fontsize=font_size)
+        ax0.set_ylabel('SER', fontsize=font_size)
+        ax0.tick_params(axis='both', which='major', labelsize=font_size)
+        ax0.grid(axis='both', which='both')
+        axins.set_yscale('log')
+        axins.grid(axis='both', which='both')
+        axins.set_yticklabels([], minor=True)
+        plt.setp(axins.get_xticklabels(), backgroundcolor='white')
+        plt.setp(axins.get_yticklabels(), backgroundcolor='white')
+        fig2.tight_layout()
+        path2 = os.path.join(fig_path, f'{cp_len}_corrected_zoom.eps')
+        fig2.savefig(path2, bbox_inches='tight')
+
+    path0 = os.path.join(fig_path, f'{cp_len}.eps')
+    path1 = os.path.join(fig_path, f'{cp_len}_corrected.eps')
+
+    fig0.savefig(path0, bbox_inches='tight')
+    fig1.savefig(path1, bbox_inches='tight')
+
+    plt.close()
 
     
 

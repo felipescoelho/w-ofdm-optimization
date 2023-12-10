@@ -64,9 +64,9 @@ def optimization_fun(data:tuple):
     cond_no = np.linalg.cond(H_mat)
     print('---------------------------------------------')
     print(f'Condition Number: {cond_no}.')
-    reg = 1e-9
+    reg = 1e-12
     if system_design in ['CPW', 'WOLA']:
-        reg = 1e-18
+        reg = 1e-16
     epsilon = 1e-20
     H_reg = H_mat + reg*np.eye(H_mat.shape[0])
     print(f'Regularized condition number: {np.linalg.cond(H_reg)}.')
@@ -755,11 +755,11 @@ class OptimizerTxRx:
         self.cp_len = cp_len
         self.tail_tx_len = tail_tx_len
         self.tail_rx_len = tail_rx_len
-        if self.name == 'WOLA':
+        if self.name == 'CPW':
             self.cs_len = int(self.tail_tx_len + self.tail_rx_len/2)
             self.rm_len = int(self.cp_len - self.tail_rx_len/2)
             self.shift_len = 0
-        elif self.name == 'CPW':
+        elif self.name == 'WOLA':
             self.cs_len = self.tail_tx_len
             self.rm_len = self.cp_len - self.tail_rx_len
             self.shift_len = int(self.tail_rx_len/2)

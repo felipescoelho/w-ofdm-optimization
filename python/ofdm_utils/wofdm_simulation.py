@@ -51,7 +51,7 @@ def simulation_fun(data:tuple):
         win_tail = np.load(window_file_path)
         win_tail_tx = win_tail[:tail_tx+1].reshape(tail_tx+1, 1)
         win_tail_rx = win_tail[tail_tx+1:].reshape(int(tail_rx/2+1), 1)
-        cs_len = int(tail_tx + tail_rx/2) if system_design == 'WOLA' else tail_tx
+        cs_len = int(tail_tx + tail_rx/2) if system_design == 'CPW' else tail_tx
     elif system_design in ['wtx', 'CPwtx']:
         win_tail_tx = np.load(window_file_path)
         win_tail_rx = np.array([1], ndmin=2)
@@ -404,11 +404,11 @@ class wOFDMSystem:
             self.cs_len = 0
             self.rm_len = self.cp_len - self.tail_rx
             self.shift_len = int(self.tail_rx/2)
-        elif self.name == 'CPW':
+        elif self.name == 'WOLA':
             self.cs_len = self.tail_tx
             self.rm_len = self.cp_len - self.tail_rx
             self.shift_len = int(self.tail_rx/2)
-        elif self.name == 'WOLA':
+        elif self.name == 'CPW':
             self.cs_len = int(self.tail_tx + self.tail_rx/2)
             self.rm_len = int(self.cp_len - self.tail_rx/2)
             self.shift_len = 0

@@ -11,7 +11,7 @@ import numpy as np
 import os
 from multiprocessing import cpu_count, Pool
 from channel_model import gen_chan
-from ofdm_utils import simulation_fun, obr_fun
+from ofdm_utils import simulation_fun, timefreq_fun
 
 
 def arg_parser():
@@ -47,7 +47,7 @@ def arg_parser():
     parser.add_argument('--simulation_path', type=str,
                         default='simulation_results',
                         help='Folder to save results.')
-    parser.add_argument('--figures_path', type=str, default='figures_path',
+    parser.add_argument('--figures_path', type=str, default='figures',
                         help='Folder to save figures.')
 
     return parser
@@ -90,7 +90,8 @@ if __name__ == '__main__':
         sys_list = args.systems.split(',')
         if args.figures:
             from figures_utils import gen_figures_opt
-            gen_figures_opt(args.window_path, dft_len, cp_list, sys_list)
+            gen_figures_opt(args.window_path, args.figures_path, dft_len,
+                            cp_list, sys_list)
         else:
             from optimization_tools import optimization_fun
             os.makedirs(args.window_path, exist_ok=True)
@@ -111,7 +112,8 @@ if __name__ == '__main__':
         snr_arr = np.arange(*[int(val) for val in args.snr.split(',')])
         if args.figures:
             from figures_utils import gen_figures_sim
-            gen_figures_sim(args.simulation_path, cp_list, sys_list, snr_arr)
+            gen_figures_sim(args.simulation_path, args.figures_path, cp_list,
+                            sys_list, snr_arr)
         else:
             tail_tx_fun = lambda x,y: x if y in ['CPW', 'WOLA', 'CPwtx', 'wtx'] \
                 else 0
@@ -128,12 +130,14 @@ if __name__ == '__main__':
             else:
                 [simulation_fun(data) for data in data_list]
     
-    elif args.mode == 'run_obr':
+    elif args.mode == 'run_timefreq':
         dft_len = 256
         cp_list = [int(cp_len) for cp_len in args.cp_length.split(',')]
         sys_list = args.systems.split(',')
         if args.figures:
-            pass
+            from figures_utils import gen_figures_timefreq
+            gen_figures_timefreq(args.simulation_path, args.figures_path,
+                                 cp_list, sys_list)
         else:
             tail_tx_fun = lambda x,y: x if y in ['CPW', 'WOLA', 'CPwtx', 'wtx'] \
                 else 0
@@ -145,9 +149,9 @@ if __name__ == '__main__':
                          for sys in sys_list for cp in cp_list]
             if args.parallel:
                 with Pool(cpu_count()) as pool:
-                    pool.map(obr_fun, data_list)
+                    pool.map(timefreq_fun, data_list)
             else:
-                [obr_fun(data) for data in data_list]
+                [timefreq_fun(data) for data in data_list]
     else:
         print('Mode is not defined, be sure to use gen_chan, run_opt, or ' \
               + 'run_sim.')

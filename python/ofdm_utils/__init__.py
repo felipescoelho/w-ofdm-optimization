@@ -4,7 +4,7 @@
 __all__ = ['gen_add_redundancy_matrix', 'gen_idft_matrix', 'gen_rc_window_tx',
            'gen_rm_redundancy_matrix', 'gen_rc_window_rx', 'gen_dft_matrix',
            'gen_overlap_and_add_matrix', 'gen_circ_shift_matrix',
-           'gen_channel_tensor', 'simulation_fun', 'obr_fun']
+           'gen_channel_tensor', 'simulation_fun', 'timefreq_fun']
 
 
 from .transmitter import (gen_add_redundancy_matrix, gen_idft_matrix,
@@ -15,7 +15,7 @@ from .receiver import (gen_rm_redundancy_matrix, gen_rc_window_rx,
 from .channel import gen_channel_tensor
 from .wofdm_simulation import simulation_fun
 from .interf_calc import interf_power
-from .obr_simulation import obr_fun
+from .timefreq_simulation import timefreq_fun
 
 
 # EoF

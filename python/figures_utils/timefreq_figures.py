@@ -39,6 +39,7 @@ def gen_figures_timefreq(folder_path:str, figures_path:str, cp_list:list,
     for cp_len in cp_list:
         cp_data = read_results(folder_path, cp_len, 'CP')
         cp_tf = cp_data['X_est_cp']
+        S_cp = cp_data['S_cp']
         f_axis = cp_data['f_axis']
         for sys in sys_list:
             if sys == 'CPwrx':
@@ -56,16 +57,21 @@ def gen_figures_timefreq(folder_path:str, figures_path:str, cp_list:list,
             opt_timefreq, rc_timefreq = read_results(folder_path, cp_len, sys)
             opt_corrected, rc_corrected = read_results(folder_path,
                                                        cp_corrected, sys)
-            # plot_timefreq_single_cp(
-            #     cp_tf, opt_timefreq['X_est_opt'], opt_corrected['X_est_opt'],
-            #     rc_timefreq['X_est_rc'], rc_corrected['X_est_rc'], f_axis, sys,
-            #     cp_len, fig_path
-            # )
-            estimate_papr(
-                cp_data['mf_band_cp'], opt_timefreq['mf_band_opt'],
-                opt_corrected['mf_band_opt'], rc_timefreq['mf_band_rc'],
-                rc_corrected['mf_band_rc'], sys, cp_len
+            plot_timefreq_single_cp(
+                cp_tf, opt_timefreq['X_est_opt'], opt_corrected['X_est_opt'],
+                rc_timefreq['X_est_rc'], rc_corrected['X_est_rc'], f_axis, sys,
+                cp_len, fig_path
             )
+            plot_timefreq_single_cp(
+                S_cp, opt_timefreq['S_opt'], opt_corrected['S_opt'],
+                rc_timefreq['S_rc'], rc_corrected['S_rc'], f_axis, sys,
+                cp_len, fig_path, True
+            )
+            # estimate_papr(
+            #     cp_data['mf_band_cp'], opt_timefreq['mf_band_opt'],
+            #     opt_corrected['mf_band_opt'], rc_timefreq['mf_band_rc'],
+            #     rc_corrected['mf_band_rc'], sys, cp_len
+            # )
 
 
 def read_results(folder_path:str, cp_len:int, sys:str):
@@ -91,7 +97,7 @@ def read_results(folder_path:str, cp_len:int, sys:str):
 def plot_timefreq_single_cp(cp_tf:np.ndarray, opt_tf:np.ndarray,
                             opt_corr:np.ndarray, rc_tf:np.ndarray,
                             rc_corr:np.ndarray, f_axis:np.ndarray, sys:str,
-                            cp_len:int, fig_path:str):
+                            cp_len:int, fig_path:str, anal=False):
     """"""
 
     color_list = ['tab:blue', 'tab:orange', 'tab:green', 'tab:red',
@@ -100,6 +106,40 @@ def plot_timefreq_single_cp(cp_tf:np.ndarray, opt_tf:np.ndarray,
     width = 5.93
     height = width/((1 + 5**.5)/2)
     font_size = 12
+
+    if anal:
+
+        fig0 = plt.figure(figsize=(width, height))
+        ax0 = fig0.add_subplot(1, 1, 1)
+        ax0.plot(f_axis, 10*np.log10(cp_tf), label='CP', c=color_list[-3])
+        ax0.plot(f_axis, 10*np.log10(rc_tf), label='RC', c=color_list[3])
+        ax0.plot(f_axis, 10*np.log10(opt_tf), label='Opt.', c=color_list[-1])
+        ax0.legend(fontsize=font_size)
+        ax0.set_ylabel('PSD, dB', fontsize=font_size)
+        ax0.set_xlabel('Frequency, Hz', fontsize=font_size)
+        ax0.tick_params(axis='both', which='major', labelsize=font_size)
+        ax0.grid()
+        fig0.tight_layout()
+
+        fig1 = plt.figure(figsize=(width, height))
+        ax0 = fig1.add_subplot(1, 1, 1)
+        ax0.plot(f_axis, 10*np.log10(cp_tf), label='CP', c=color_list[-3])
+        ax0.plot(f_axis, 10*np.log10(rc_corr), label='RC', c=color_list[3])
+        ax0.plot(f_axis, 10*np.log10(opt_corr), label='Opt.', c=color_list[-1])
+        ax0.legend(fontsize=font_size)
+        ax0.set_ylabel('PSD, dB', fontsize=font_size)
+        ax0.set_xlabel('Frequency, Hz', fontsize=font_size)
+        ax0.tick_params(axis='both', which='major', labelsize=font_size)
+        ax0.grid()
+        fig1.tight_layout()
+
+        path0 = os.path.join(fig_path, f'anal_{sys}_{cp_len}.eps')
+        path1 = os.path.join(fig_path, f'anal_{sys}_{cp_len}_corrected.eps')
+        fig0.savefig(path0, bbox_inches='tight')
+        fig1.savefig(path1, bbox_inches='tight')
+
+        return
+
     fig0 = plt.figure(figsize=(width, height))
     ax0 = fig0.add_subplot(1, 1, 1)
     ax0.plot(f_axis, 10*np.log10(cp_tf), label='CP', c=color_list[-3])
